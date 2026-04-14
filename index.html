@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workout App</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: -apple-system, Arial;
+  background: #0f0f0f;
+  color: #fff;
+}
+
+header {
+  padding: 15px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: bold;
+  background: #151515;
+}
+
+.tabs {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px;
+  background: #1a1a1a;
+}
+
+.tab {
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: #2a2a2a;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: #4caf50;
+}
+
+.card {
+  background: #1b1b1b;
+  margin: 10px;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.title {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.small {
+  color: #aaa;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+input[type="number"] {
+  width: 70px;
+  padding: 5px;
+  border-radius: 6px;
+  border: none;
+}
+
+button {
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.save {
+  width: calc(100% - 20px);
+  margin: 10px;
+  background: #4caf50;
+  color: #fff;
+  font-size: 16px;
+}
+
+/* TIMER */
+.timer-box {
+  background: #1b1b1b;
+  margin: 10px;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.timer-display {
+  margin-top: 8px;
+  font-weight: bold;
+  color: #4caf50;
+}
+</style>
+</head>
+
+<body>
+
+<header>🏋️ Workout Tracker</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="selectDay('push', this)">Толкай</div>
+  <div class="tab" onclick="selectDay('pull', this)">Тяни</div>
+  <div class="tab" onclick="selectDay('legs', this)">Ноги</div>
+</div>
+
+<div id="app"></div>
+
+<button class="save" onclick="saveWorkout()">💾 Сохранить</button>
+
+<script>
+
+const program = {
+  push: [
+    {name:"Жим гантелей", reps:"8-12"},
+    {name:"Разводка гантелей", reps:"12-15"},
+    {name:"Жим над головой", reps:"10-15"},
+    {name:"Вращение блина вокруг головы", reps:"10-12"},
+    {name:"Французский жим", reps:"12-15"}
+  ],
+  pull: [
+    {name:"Тяга в наклоне", reps:"10-15"},
+    {name:"Доброе утро", reps:"12-15"},
+    {name:"Пуловер", reps:"12-15"},
+    {name:"Бицепс", reps:"12-15"},
+    {name:"Диагональные подъёмы блина", reps:"12-15"}
+  ],
+  legs: [
+    {name:"Присед", reps:"10-15"},
+    {name:"Румынская тяга", reps:"12-15"},
+    {name:"Выпады", reps:"10-12"},
+    {name:"Махи гирей", reps:"15-20"},
+    {name:"Джеб с блином", reps:"12-15"}
+  ]
+};
+
+let currentDay = "push";
+
+// =====================
+// STORAGE
+// =====================
+function getWorkouts(){
+  return JSON.parse(localStorage.getItem("workouts") || "[]");
+}
+
+// =====================
+// FIND LAST EXERCISE
+// =====================
+function getLastExercise(day, name){
+  const all = getWorkouts().filter(w => w.day === day).reverse();
+
+  for(let w of all){
+    const found = w.exercises.find(e => e.name === name);
+    if(found) return found;
+  }
+  return null;
+}
+
+// =====================
+// UI
+// =====================
+function selectDay(day, el){
+
+  currentDay = day;
+
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  if(el) el.classList.add("active");
+
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+
+  program[day].forEach(ex => {
+
+    const last = getLastExercise(day, ex.name);
+
+    let prev = "нет данных";
+    if(last){
+      const done = last.sets.filter(s => s.done).length;
+      prev = `${last.weight || "-"} кг × ${done} подхода`;
+    }
+
+    const card = document.createElement("div");
+    card.className = "card";
+    card.dataset.name = ex.name;
+
+    card.innerHTML = `
+      <div class="title">${ex.name} (${ex.reps})</div>
+      <div class="small">⏮ ${prev}</div>
+
+      <div class="row">
+        <span>Вес:</span>
+        <input type="number" class="weight">
+        <span>кг</span>
+      </div>
+
+      <div class="row">
+        <label><input type="checkbox"> 1</label>
+        <label><input type="checkbox"> 2</label>
+        <label><input type="checkbox"> 3</label>
+      </div>
+    `;
+
+    app.appendChild(card);
+  });
+
+  renderTimer();
+}
+
+// =====================
+// SAVE WORKOUT
+// =====================
+function saveWorkout(){
+
+  const cards = document.querySelectorAll(".card");
+
+  const exercises = [];
+
+  cards.forEach(c => {
+
+    const name = c.dataset.name;
+    const weight = c.querySelector(".weight").value;
+
+    const sets = [];
+    c.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+      sets.push({ done: cb.checked });
+    });
+
+    if(weight || sets.some(s => s.done)){
+      exercises.push({ name, weight: weight || null, sets });
+    }
+  });
+
+  const data = getWorkouts();
+
+  data.push({
+    id: Date.now(),
+    date: new Date().toISOString(),
+    day: currentDay,
+    exercises
+  });
+
+  localStorage.setItem("workouts", JSON.stringify(data));
+
+  alert("Сохранено 💪");
+}
+
+// =====================
+// TIMER
+// =====================
+let timer = null;
+let timeLeft = 60;
+
+function renderTimer(){
+
+  const app = document.getElementById("app");
+
+  const box = document.createElement("div");
+  box.className = "timer-box";
+
+  box.innerHTML = `
+    <div class="title">⏱ Таймер отдыха</div>
+
+    <div class="row">
+      <input id="restInput" type="number" value="60">
+      <button onclick="startTimer()">Старт</button>
+      <button onclick="stopTimer()">Стоп</button>
+    </div>
+
+    <div id="timerDisplay" class="timer-display">Не запущен</div>
+  `;
+
+  app.appendChild(box);
+}
+
+function startTimer(){
+
+  const input = document.getElementById("restInput");
+  timeLeft = parseInt(input.value || 60);
+
+  const display = document.getElementById("timerDisplay");
+
+  if(timer) clearInterval(timer);
+
+  timer = setInterval(() => {
+
+    display.innerText = `⏳ Осталось: ${timeLeft} сек`;
+
+    if(timeLeft <= 0){
+      clearInterval(timer);
+      timer = null;
+
+      display.innerText = "⏰ Отдых окончен!";
+
+      if(navigator.vibrate){
+        navigator.vibrate(200);
+      }
+
+      function playBeep(){
+  const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+  audio.play();
+}
+
+playBeep();
+
+setTimeout(playBeep, 400);
+setTimeout(playBeep, 800);
+
+      return;
+    }
+
+    timeLeft--;
+
+  }, 1000);
+}
+
+function stopTimer(){
+  if(timer) clearInterval(timer);
+  timer = null;
+
+  document.getElementById("timerDisplay").innerText = "Остановлен";
+}
+
+// =====================
+// INIT
+// =====================
+selectDay("push");
+
+</script>
+
+</body>
+</html>
