@@ -135,40 +135,32 @@ const program = {
 };
 
 let currentDay = "push";
+let audioCtx = null;
 
 // 🔥 правильная разблокировка аудио (без звука)
 function primeAudio(){
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-    const ctx = new AudioContext();
 
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
+    if (!audioCtx) {
+      audioCtx = new AudioContext();
+    }
 
-    gain.gain.value = 0;
-
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-
-    oscillator.start(0);
-    oscillator.stop(0.001);
-
-    if (ctx.state === 'suspended') {
-      ctx.resume();
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
     }
   } catch(e){}
 }
 
 // 🔊 звук как Apple Watch
 function playThreeBeeps(){
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  const ctx = new AudioContext();
+  if (!audioCtx) return;
 
   function beep(volume, delay){
     setTimeout(() => {
 
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
+      const oscillator = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
 
       oscillator.type = "triangle";
       oscillator.frequency.value = 880;
@@ -176,10 +168,10 @@ function playThreeBeeps(){
       gain.gain.value = volume;
 
       oscillator.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(audioCtx.destination);
 
       oscillator.start();
-      oscillator.stop(ctx.currentTime + 0.15);
+      oscillator.stop(audioCtx.currentTime + 0.15);
 
     }, delay);
   }
