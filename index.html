@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Workout Tracker</title>
 
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f0f0f">
-
 <style>
 body {
   margin: 0;
@@ -57,9 +54,18 @@ header {
 
 .row {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
   margin: 6px 0;
+}
+
+/* ✔ FIX input веса */
+.weight {
+  width: 60px;
+  padding: 4px;
+  border-radius: 6px;
+  border: none;
+  text-align: center;
 }
 
 button {
@@ -76,6 +82,7 @@ button {
   color: white;
 }
 
+/* TIMER */
 .timer {
   margin: 10px;
   padding: 12px;
@@ -86,58 +93,12 @@ button {
 .timer-buttons {
   display: flex;
   gap: 10px;
+  margin-top: 8px;
 }
 
 .timer-btn.plus {
   background: #2196f3;
   color: white;
-}
-
-/* SWITCH */
-.switch-container {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #333;
-}
-
-.switch {
-  position: relative;
-  width: 48px;
-  height: 24px;
-}
-
-.switch input {
-  opacity: 0;
-}
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: #555;
-  border-radius: 24px;
-}
-
-.slider:before {
-  content: "";
-  position: absolute;
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background: white;
-  border-radius: 50%;
-  transition: 0.3s;
-}
-
-input:checked + .slider {
-  background: #4caf50;
-}
-
-input:checked + .slider:before {
-  transform: translateX(24px);
 }
 </style>
 </head>
@@ -147,9 +108,9 @@ input:checked + .slider:before {
 <header>🏋️ Workout Tracker</header>
 
 <div class="tabs">
-  <div class="tab active" onclick="selectDay('push', this)">Толкай</div>
-  <div class="tab" onclick="selectDay('pull', this)">Тяни</div>
-  <div class="tab" onclick="selectDay('legs', this)">Ноги</div>
+  <div class="tab active" onclick="selectDay('push',this)">Толкай</div>
+  <div class="tab" onclick="selectDay('pull',this)">Тяни</div>
+  <div class="tab" onclick="selectDay('legs',this)">Ноги</div>
 </div>
 
 <div id="app"></div>
@@ -163,220 +124,124 @@ const program = {
     {name:"Жим гантелей", reps:"8-12"},
     {name:"Разводка", reps:"12-15"},
     {name:"Жим над головой", reps:"10-15"},
-    {name:"Французский жим", reps:"12-15"}
+    {name:"Французский жим", reps:"12-15"},
+    {name:"Отжимания", reps:"макс"}
   ],
   pull: [
     {name:"Тяга гантели", reps:"10-15"},
-    {name:"Бицепс", reps:"12-15"}
+    {name:"Бицепс", reps:"12-15"},
+    {name:"Пуловер", reps:"12-15"},
+    {name:"Доброе утро", reps:"12-15"},
+    {name:"Подъёмы в наклоне", reps:"12-15"}
   ],
   legs: [
     {name:"Присед", reps:"10-15"},
-    {name:"Румынская тяга", reps:"12-15"}
+    {name:"Румынская тяга", reps:"12-15"},
+    {name:"Выпады", reps:"10-12"},
+    {name:"Махи гирей", reps:"15-20"},
+    {name:"Джамп сквоты", reps:"12-15"}
   ]
 };
 
-let currentDay = "push";
-let audioCtx = null;
+let currentDay="push";
 let timer;
-let targetTimestamp = null;
-let isRunning = false;
+let target=0;
+let running=false;
 
-let notificationsEnabled = localStorage.getItem("notif") === "true";
+/* ================= TIMER ================= */
 
-// 🔊 AUDIO
-function primeAudio(){
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  audioCtx.resume();
-}
-
-document.addEventListener("click", primeAudio, { once:true });
-
-function beep(f,d,v){
-  setTimeout(()=>{
-    if (!audioCtx) return;
-
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-
-    o.type = "sine";
-    o.frequency.value = f;
-    g.gain.value = v;
-
-    o.connect(g);
-    g.connect(audioCtx.destination);
-
-    o.start();
-    o.stop(audioCtx.currentTime + 0.12);
-  }, d);
-}
-
-function playSound(){
-  beep(880,0,0.2);
-  beep(880,300,0.5);
-  beep(880,600,1.0);
-}
-
-// 🔔 PUSH
-function showPush(){
-  if (!notificationsEnabled) return;
-
-  const msg = "Отдых окончен! Пора делать следующий подход 💪";
-
-  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage({
-      type:"SHOW_NOTIFICATION",
-      body: msg
-    });
-  } else if ("Notification" in window) {
-    new Notification("Workout Tracker", { body: msg });
-  }
-}
-
-// 🧠 ГЛАВНАЯ ЛОГИКА
-function notifyEnd(){
-  const appVisible = !document.hidden;
-
-  if (appVisible) {
-    playSound();
-  } else {
-    showPush();
-  }
-}
-
-// 📊 DATA
-function getData(){
-  return JSON.parse(localStorage.getItem("workouts") || "[]");
-}
-
-function getLast(day,name){
-  const all = getData().filter(w=>w.day===day).reverse();
-  for(let w of all){
-    const ex = w.exercises.find(e=>e.name===name);
-    if(ex) return ex;
-  }
-  return null;
-}
-
-// 🟢 CHECKBOX
-function checkCard(card){
-  const cbs = card.querySelectorAll("input[type=checkbox]");
-  const ok = [...cbs].every(c=>c.checked);
-  card.classList.toggle("completed", ok);
-}
-
-// 📌 UI
-function selectDay(day,el){
-  currentDay = day;
-
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  if(el) el.classList.add("active");
-
-  const app = document.getElementById("app");
-  app.innerHTML = "";
-
-  program[day].forEach((ex,i)=>{
-    const last = getLast(day,ex.name);
-
-    const card = document.createElement("div");
-    card.className = "card";
-
-    card.innerHTML = `
-      <div class="title">${i+1}. ${ex.name} (${ex.reps})</div>
-      <div class="small">⏮ ${last?.weight || "нет данных"}</div>
-
-      <div class="row">
-        <input class="weight" value="${last?.weight || ""}">
-      </div>
-
-      <div class="row">
-        <label><input type="checkbox" class="set">1</label>
-        <label><input type="checkbox" class="set">2</label>
-        <label><input type="checkbox" class="set">3</label>
-      </div>
-    `;
-
-    app.appendChild(card);
-
-    card.querySelectorAll(".set").forEach(cb=>{
-      cb.addEventListener("change", ()=>checkCard(card));
-    });
-  });
-
-  renderTimer();
-}
-
-// 💾 SAVE
-function saveWorkout(){
-  const cards = document.querySelectorAll(".card");
-  const exercises = [];
-
-  cards.forEach(c=>{
-    const name = c.querySelector(".title").innerText;
-    const weight = c.querySelector(".weight").value;
-
-    const sets = [...c.querySelectorAll(".set")].map(s=>({done:s.checked}));
-
-    exercises.push({name,weight,sets});
-  });
-
-  const data = getData();
-  data.push({
-    id:Date.now(),
-    day:currentDay,
-    date:new Date().toISOString(),
-    exercises
-  });
-
-  localStorage.setItem("workouts",JSON.stringify(data));
-  alert("Сохранено 💪");
-}
-
-// ⏱ TIMER
 function start(){
-  primeAudio();
-
-  let sec = parseInt(document.getElementById("t").value)||60;
-  targetTimestamp = Date.now() + sec*1000;
-  isRunning = true;
+  let sec=parseInt(document.getElementById("t").value)||60;
+  target=Date.now()+sec*1000;
+  running=true;
 
   clearInterval(timer);
 
-  timer = setInterval(()=>{
-    let left = Math.ceil((targetTimestamp-Date.now())/1000);
+  timer=setInterval(()=>{
+    let left=Math.ceil((target-Date.now())/1000);
 
     if(left<=0){
       stop(true);
       return;
     }
 
-    document.getElementById("d").innerText = "⏳ " + left;
+    document.getElementById("d").innerText="⏳ "+left+" сек";
   },200);
 }
 
-function stop(finished=false){
+function stop(done=false){
   clearInterval(timer);
-  isRunning = false;
+  running=false;
 
-  if(finished){
-    notifyEnd();
-    document.getElementById("d").innerText = "готово";
+  if(done){
+    notify();
+    document.getElementById("d").innerText="готово";
   } else {
-    document.getElementById("d").innerText = "стоп";
+    document.getElementById("d").innerText="стоп";
   }
 }
 
-// ⏱ UI TIMER
+/* +30 sec FIX */
+function add30(){
+  if(running){
+    target+=30000;
+  }
+}
+
+/* ================= UI ================= */
+
+function selectDay(day,el){
+  currentDay=day;
+
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  el.classList.add("active");
+
+  const app=document.getElementById("app");
+  app.innerHTML="";
+
+  program[day].forEach((ex,i)=>{
+
+    const card=document.createElement("div");
+    card.className="card";
+
+    card.innerHTML=`
+      <div class="title">${i+1}. ${ex.name} (${ex.reps})</div>
+
+      <div class="row">
+        <input class="weight" placeholder="кг">
+      </div>
+
+      <div class="row">
+        <label><input type="checkbox">1</label>
+        <label><input type="checkbox">2</label>
+        <label><input type="checkbox">3</label>
+      </div>
+    `;
+
+    app.appendChild(card);
+
+    card.querySelectorAll("input[type=checkbox]").forEach(cb=>{
+      cb.onchange=()=>{
+        const all=[...card.querySelectorAll("input[type=checkbox]")].every(c=>c.checked);
+        card.classList.toggle("completed",all);
+      };
+    });
+  });
+
+  renderTimer();
+}
+
+/* ================= TIMER UI ================= */
+
 function renderTimer(){
-  const old = document.querySelector(".timer");
+  const old=document.querySelector(".timer");
   if(old) old.remove();
 
-  const div = document.createElement("div");
-  div.className = "timer";
+  const div=document.createElement("div");
+  div.className="timer";
 
-  div.innerHTML = `
-    <b>⏱ Таймер отдыха</b>
+  div.innerHTML=`
+    <b>⏱ Таймер</b>
 
     <div class="row">
       <input id="t" value="60">
@@ -384,35 +249,34 @@ function renderTimer(){
       <button onclick="stop()">Стоп</button>
     </div>
 
-    <div id="d">не запущен</div>
-
-    <div class="switch-container">
-      <span>🔔 уведомления</span>
-      <label class="switch">
-        <input type="checkbox" onchange="toggleNotif(this)">
-        <span class="slider"></span>
-      </label>
+    <div class="timer-buttons">
+      <button class="timer-btn plus" onclick="add30()">+30 сек</button>
     </div>
+
+    <div id="d">не запущен</div>
   `;
 
   document.getElementById("app").appendChild(div);
 }
 
-// 🔔 toggle
-function toggleNotif(el){
-  notificationsEnabled = el.checked;
-  localStorage.setItem("notif",notificationsEnabled);
+/* ================= NOTIFY ================= */
+
+function notify(){
+  const msg="Отдых окончен 💪";
+
+  if(!document.hidden){
+    console.log("BEEP");
+  } else {
+    if("Notification" in window){
+      new Notification(msg);
+    }
+  }
 }
 
-// INIT
+/* ================= INIT ================= */
+
 selectDay("push");
 
-</script>
-
-<script>
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register("sw.js");
-}
 </script>
 
 </body>
