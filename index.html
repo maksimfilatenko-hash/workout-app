@@ -200,7 +200,7 @@ function selectDay(day, el){
   const app = document.getElementById("app");
   app.innerHTML = "";
 
-  program[day].forEach(ex => {
+  program[day].forEach((ex, index) => {
     const last = getLast(day, ex.name);
     let prev = last ? `${last.weight || "-"} кг × ${last.sets.filter(s => s.done).length}` : "нет данных";
 
@@ -209,7 +209,7 @@ function selectDay(day, el){
     card.dataset.name = ex.name;
 
     card.innerHTML = `
-      <div class="title">${ex.name} (${ex.reps})</div>
+      <div class="title">${index + 1}. ${ex.name} (${ex.reps})</div>
       <div class="small">⏮ ${prev}</div>
       <div class="row">
         <span>Вес:</span>
