@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Workout Tracker</title>
 
 <link rel="manifest" href="manifest.json">
@@ -12,11 +12,25 @@
 <link rel="icon" href="icon.png">
 
 <style>
+/* Фиксы для iPhone */
 body {
   margin: 0;
   font-family: -apple-system, Arial;
   background: #0f0f0f;
   color: #fff;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+
+input, button, .tab, .save {
+  font-size: 16px; /* предотвращает зум на iPhone */
+}
+
+input[type="tel"] {
+  width: 70px;
+  padding: 5px;
+  border-radius: 6px;
+  font-size: 16px;
 }
 
 header {
@@ -58,12 +72,6 @@ header {
   gap: 8px;
   align-items: center;
   margin: 6px 0;
-}
-
-input[type="number"] {
-  width: 70px;
-  padding: 5px;
-  border-radius: 6px;
 }
 
 button {
@@ -164,7 +172,7 @@ function selectDay(day, el){
       <div class="small">⏮ ${prev}</div>
       <div class="row">
         <span>Вес:</span>
-        <input type="number" class="weight">
+        <input type="tel" inputmode="numeric" pattern="\\d*" class="weight">
       </div>
       <div class="row">
         <label><input type="checkbox">1</label>
@@ -172,10 +180,8 @@ function selectDay(day, el){
         <label><input type="checkbox">3</label>
       </div>
     `;
-
     app.appendChild(card);
   });
-
   renderTimer();
 }
 
@@ -206,28 +212,21 @@ function saveWorkout(){
   alert("Сохранено 💪");
 }
 
-// ========== ТАЙМЕР С ТРЕМЯ ГАРАНТИРОВАННЫМИ СИГНАЛАМИ ==========
+// Таймер с тремя сигналами
 let timer;
 let timeLeft = 60;
 
 function playThreeBeeps() {
-  // Создаём три звука с разной задержкой
   const beepSound = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
-  
-  // Первый сигнал сразу
   let audio1 = new Audio(beepSound);
-  audio1.play().catch(e => console.log("Сигнал 1 заблокирован:", e));
-  
-  // Второй сигнал через 0.4 секунды
+  audio1.play().catch(e => console.log("Сигнал 1:", e));
   setTimeout(() => {
     let audio2 = new Audio(beepSound);
-    audio2.play().catch(e => console.log("Сигнал 2 заблокирован:", e));
+    audio2.play().catch(e => console.log("Сигнал 2:", e));
   }, 400);
-  
-  // Третий сигнал через 0.8 секунды
   setTimeout(() => {
     let audio3 = new Audio(beepSound);
-    audio3.play().catch(e => console.log("Сигнал 3 заблокирован:", e));
+    audio3.play().catch(e => console.log("Сигнал 3:", e));
   }, 800);
 }
 
@@ -235,11 +234,10 @@ function renderTimer(){
   const app = document.getElementById("app");
   const div = document.createElement("div");
   div.className = "timer";
-
   div.innerHTML = `
     <b>⏱ Таймер отдыха</b>
     <div class="row">
-      <input id="t" type="number" value="60">
+      <input id="t" type="tel" inputmode="numeric" pattern="\\d*" value="60">
       <button onclick="start()">Старт</button>
       <button onclick="stop()">Стоп</button>
     </div>
@@ -251,19 +249,13 @@ function renderTimer(){
 function start(){
   timeLeft = +document.getElementById("t").value;
   const d = document.getElementById("d");
-
   clearInterval(timer);
-
   timer = setInterval(()=>{
     d.innerText = `⏳ ${timeLeft} сек`;
-
     if(timeLeft <= 0){
       clearInterval(timer);
       d.innerText = "⏰ отдых окончен!";
-      
-      // ТРИ РАЗНЫХ ЗВУКА С РАЗНЫМИ ЗАДЕРЖКАМИ
       playThreeBeeps();
-      
       return;
     }
     timeLeft--;
@@ -276,6 +268,26 @@ function stop(){
 }
 
 selectDay("push");
+</script>
+
+<!-- Фикс масштаба для iPhone -->
+<script>
+(function fixIPhoneScale() {
+  let timeout;
+  window.addEventListener('focusout', function() {
+    timeout = setTimeout(function() {
+      window.scrollTo(0, 0);
+      document.body.scrollTop = 0;
+      document.documentElement.scrollTop = 0;
+    }, 100);
+  });
+  window.addEventListener('resize', function() {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(function() {
+      window.scrollTo(0, 0);
+    }, 100);
+  });
+})();
 </script>
 
 <script>
