@@ -116,6 +116,12 @@ button {
 .timer-btn.plus {
   background: #2196f3;
 }
+
+.notify-btn {
+  margin-top: 8px;
+  background: #ff9800;
+  font-size: 12px;
+}
 </style>
 </head>
 
@@ -161,6 +167,7 @@ const program = {
 
 let currentDay = "push";
 let audioCtx = null;
+let notificationPermissionAsked = false;
 
 // Разблокировка аудио
 function primeAudio(){
@@ -175,9 +182,10 @@ function primeAudio(){
   } catch(e){}
 }
 
-// Звук
+// Звук (только когда экран активен)
 function playThreeBeeps(){
   if (!audioCtx) return;
+  if (document.hidden) return; // Не играем звук, если страница не активна
 
   function beep(volume, delay){
     setTimeout(() => {
@@ -198,6 +206,49 @@ function playThreeBeeps(){
   beep(1.0, 800);
 }
 
+// Запрос разрешения на уведомления
+function askNotificationPermission() {
+  if (!("Notification" in window)) {
+    console.log("Браузер не поддерживает уведомления");
+    return;
+  }
+  
+  if (Notification.permission === "granted") {
+    console.log("Уведомления уже разрешены");
+  } else if (Notification.permission !== "denied") {
+    Notification.requestPermission().then(permission => {
+      if (permission === "granted") {
+        console.log("Уведомления разрешены");
+      }
+    });
+  }
+}
+
+// Показать уведомление
+function showNotification() {
+  if (!("Notification" in window)) return;
+  
+  if (Notification.permission === "granted") {
+    navigator.serviceWorker.ready.then(registration => {
+      registration.showNotification("⏰ Workout Tracker", {
+        body: "Отдых окончен! Пора делать следующий подход 💪",
+        icon: "icon.png",
+        badge: "icon.png",
+        vibrate: [200, 100, 200],
+        silent: false,
+        tag: "timer-end",
+        renotify: true
+      });
+    }).catch(() => {
+      // Fallback, если Service Worker не готов
+      new Notification("⏰ Workout Tracker", {
+        body: "Отдых окончен! Пора делать следующий подход 💪",
+        icon: "icon.png"
+      });
+    });
+  }
+}
+
 function getData(){
   return JSON.parse(localStorage.getItem("workouts") || "[]");
 }
@@ -211,7 +262,6 @@ function getLast(day, name){
   return null;
 }
 
-// Проверка, все ли три галочки поставлены
 function checkAllCheckboxes(card) {
   const checkboxes = card.querySelectorAll("input[type=checkbox]");
   const allChecked = Array.from(checkboxes).every(cb => cb.checked);
@@ -260,7 +310,6 @@ function selectDay(day, el){
 
     app.appendChild(card);
     
-    // Добавляем слушатели на чекбоксы
     const checkboxes = card.querySelectorAll(".set-checkbox");
     checkboxes.forEach(cb => {
       cb.addEventListener('change', () => checkAllCheckboxes(card));
@@ -297,8 +346,6 @@ function saveWorkout(){
 
   localStorage.setItem("workouts", JSON.stringify(data));
   alert("Сохранено 💪");
-  
-  // Обновляем отображение после сохранения (сбрасываем зелёный цвет)
   selectDay(currentDay, document.querySelector(".tab.active"));
 }
 
@@ -306,10 +353,8 @@ function saveWorkout(){
 let timer;
 let timeLeft = 60;
 let isTimerActive = false;
-
-// Фоновая работа таймера
-let backgroundInterval = null;
 let targetTimestamp = null;
+let backgroundInterval = null;
 
 function updateTimerDisplay() {
   const d = document.getElementById("d");
@@ -318,22 +363,33 @@ function updateTimerDisplay() {
   }
 }
 
-function startTimerFromBackground() {
-  if (!targetTimestamp) return;
+function onTimerEnd() {
+  clearInterval(timer);
+  clearInterval(backgroundInterval);
+  isTimerActive = false;
+  targetTimestamp = null;
+  
+  const d = document.getElementById("d");
+  if (d) d.innerText = "⏰ отдых окончен!";
+  
+  // Пытаемся показать уведомление (сработает даже на заблокированном экране)
+  showNotification();
+  
+  // Звук (только если страница активна)
+  if (!document.hidden) {
+    playThreeBeeps();
+    navigator.vibrate?.([200,100,200]);
+  }
+}
+
+function backgroundCheck() {
+  if (!targetTimestamp || !isTimerActive) return;
   
   const now = Date.now();
   const remaining = Math.max(0, Math.ceil((targetTimestamp - now) / 1000));
   
   if (remaining <= 0) {
-    // Таймер закончился
-    clearInterval(backgroundInterval);
-    backgroundInterval = null;
-    isTimerActive = false;
-    const d = document.getElementById("d");
-    if (d) d.innerText = "⏰ отдых окончен!";
-    playThreeBeeps();
-    navigator.vibrate?.([200,100,200]);
-    targetTimestamp = null;
+    onTimerEnd();
   } else {
     timeLeft = remaining;
     updateTimerDisplay();
@@ -343,16 +399,19 @@ function startTimerFromBackground() {
 function start(){
   primeAudio();
   
+  // Запрашиваем разрешение на уведомления при первом запуске таймера
+  if (!notificationPermissionAsked) {
+    notificationPermissionAsked = true;
+    askNotificationPermission();
+  }
+  
   const val = parseInt(document.getElementById("t").value);
   timeLeft = isNaN(val) ? 60 : val;
-  
-  // Устанавливаем целевую метку времени
   targetTimestamp = Date.now() + (timeLeft * 1000);
   
   const d = document.getElementById("d");
   clearInterval(timer);
   
-  // Очищаем фоновый интервал, если был
   if (backgroundInterval) {
     clearInterval(backgroundInterval);
     backgroundInterval = null;
@@ -360,50 +419,24 @@ function start(){
   
   isTimerActive = true;
   
-  // Основной таймер (когда страница активна)
-  timer = setInterval(()=>{
-    if (!targetTimestamp) return;
+  // Основной таймер
+  timer = setInterval(() => {
+    if (!targetTimestamp || !isTimerActive) return;
     
     const now = Date.now();
     const remaining = Math.max(0, Math.ceil((targetTimestamp - now) / 1000));
     
     if (remaining <= 0) {
-      clearInterval(timer);
-      clearInterval(backgroundInterval);
-      isTimerActive = false;
-      d.innerText = "⏰ отдых окончен!";
-      playThreeBeeps();
-      navigator.vibrate?.([200,100,200]);
-      targetTimestamp = null;
+      onTimerEnd();
       return;
     }
     
     timeLeft = remaining;
     d.innerText = `⏳ ${timeLeft} сек`;
-  }, 200); // Обновляем чаще для точности
+  }, 200);
   
-  // Фоновый таймер (даже когда телефон заблокирован)
-  backgroundInterval = setInterval(() => {
-    if (targetTimestamp && isTimerActive) {
-      const now = Date.now();
-      const remaining = Math.max(0, Math.ceil((targetTimestamp - now) / 1000));
-      
-      if (remaining <= 0 && targetTimestamp) {
-        clearInterval(backgroundInterval);
-        backgroundInterval = null;
-        isTimerActive = false;
-        
-        // Обновляем UI, если он доступен
-        const d = document.getElementById("d");
-        if (d) d.innerText = "⏰ отдых окончен!";
-        playThreeBeeps();
-        navigator.vibrate?.([200,100,200]);
-        targetTimestamp = null;
-        
-        if (timer) clearInterval(timer);
-      }
-    }
-  }, 1000);
+  // Фоновый таймер
+  backgroundInterval = setInterval(backgroundCheck, 1000);
 }
 
 function stop(){
@@ -420,12 +453,10 @@ function stop(){
 
 function add30Seconds() {
   if (isTimerActive && targetTimestamp) {
-    // Добавляем 30 секунд к целевому времени
     targetTimestamp += 30000;
     timeLeft = Math.max(0, Math.ceil((targetTimestamp - Date.now()) / 1000));
     updateTimerDisplay();
   } else if (!isTimerActive) {
-    // Если таймер не активен, просто увеличиваем значение в поле ввода
     const input = document.getElementById("t");
     let currentVal = parseInt(input.value);
     if (isNaN(currentVal)) currentVal = 60;
@@ -439,7 +470,6 @@ function add30Seconds() {
 function renderTimer(){
   const app = document.getElementById("app");
   
-  // Удаляем старый таймер, если есть
   const oldTimer = document.querySelector(".timer");
   if (oldTimer) oldTimer.remove();
   
@@ -457,10 +487,19 @@ function renderTimer(){
       <button class="timer-btn plus" onclick="add30Seconds()">+30 сек</button>
     </div>
     <div id="d">не запущен</div>
+    <button class="timer-btn notify-btn" onclick="askNotificationPermission()">🔔 Включить уведомления</button>
   `;
 
   app.appendChild(div);
 }
+
+// Слушаем, когда страница становится активной
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && targetTimestamp && isTimerActive) {
+    // При возвращении на страницу обновляем отображение
+    backgroundCheck();
+  }
+});
 
 selectDay("push");
 
@@ -468,7 +507,9 @@ selectDay("push");
 
 <script>
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js');
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    console.log("Service Worker зарегистрирован");
+  });
 }
 </script>
 
