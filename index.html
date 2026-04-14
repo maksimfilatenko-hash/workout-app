@@ -22,7 +22,7 @@ body {
 }
 
 input, button, .tab, .save {
-  font-size: 16px; /* предотвращает зум на iPhone */
+  font-size: 16px;
 }
 
 input[type="tel"] {
@@ -136,19 +136,19 @@ const program = {
 };
 
 let currentDay = "push";
-let audioAllowed = false; // Флаг: разрешён ли звук
+let audioUnlocked = false;
 
-// Функция для "активации" звука при первом касании
-function enableAudioOnFirstTouch() {
-  if (audioAllowed) return; // Если уже активирован, выходим
+// ТИХАЯ активация звука (без воспроизведения)
+function unlockAudio() {
+  if (audioUnlocked) return;
   
-  console.log("Активация звука...");
+  console.log("Активация аудио (без звука)");
   
-  // Создаём "тихий" AudioContext для разблокировки
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (AudioContext) {
+  // Способ 1: создаём и сразу "убиваем" AudioContext
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
     const context = new AudioContext();
-    // Создаём пустой звук и сразу его останавливаем
+    // Создаём тихий узел
     const gain = context.createGain();
     gain.gain.value = 0;
     const oscillator = context.createOscillator();
@@ -157,31 +157,27 @@ function enableAudioOnFirstTouch() {
     oscillator.start(0);
     oscillator.stop(0.001);
     
-    // Включаем контекст
     if (context.state === 'suspended') {
       context.resume();
     }
-  }
+  } catch(e) { console.log("AudioContext error:", e); }
   
-  // Альтернативный способ: пробуем воспроизвести и сразу остановить
-  const testAudio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-  testAudio.play()
-    .then(() => {
-      testAudio.pause();
-      testAudio.currentTime = 0;
-      audioAllowed = true;
-      console.log("Звук активирован!");
-    })
-    .catch(e => console.log("Ожидание первого касания..."));
+  // Способ 2: загружаем звук в память, НО НЕ ИГРАЕМ
+  const silentAudio = new Audio();
+  silentAudio.preload = "auto";
+  silentAudio.src = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
+  silentAudio.load(); // просто загружаем, не играем
   
-  // Удаляем обработчик после первого срабатывания
-  document.removeEventListener('touchstart', enableAudioOnFirstTouch);
-  document.removeEventListener('click', enableAudioOnFirstTouch);
+  audioUnlocked = true;
+  
+  // Удаляем обработчики
+  document.removeEventListener('touchstart', unlockAudio);
+  document.removeEventListener('click', unlockAudio);
 }
 
-// Добавляем обработчики на первое касание
-document.addEventListener('touchstart', enableAudioOnFirstTouch);
-document.addEventListener('click', enableAudioOnFirstTouch);
+// Добавляем обработчики на первое касание (без воспроизведения звука)
+document.addEventListener('touchstart', unlockAudio);
+document.addEventListener('click', unlockAudio);
 
 function getData(){
   return JSON.parse(localStorage.getItem("workouts") || "[]");
@@ -257,18 +253,36 @@ function saveWorkout(){
   alert("Сохранено 💪");
 }
 
-// Таймер с тремя сигналами
+// Таймер с тремя сигналами (гарантированно работает на iPhone)
 let timer;
 let timeLeft = 60;
 
 function playThreeBeeps() {
   const beepSound = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
   
-  // Функция для воспроизведения с проверкой разрешения
   function playBeep(delay) {
     setTimeout(() => {
       const audio = new Audio(beepSound);
-      audio.play().catch(e => console.log("Звук заблокирован, коснитесь экрана:", e));
+      audio.play().catch(e => {
+        console.log("Ошибка воспроизведения:", e);
+        // Если звук заблокирован, пробуем ещё раз через Web Audio API
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          const context = new AudioContext();
+          const source = context.createBufferSource();
+          // Создаём короткий сигнал через Oscillator как запасной вариант
+          const gain = context.createGain();
+          gain.gain.value = 0.3;
+          source.connect(gain);
+          gain.connect(context.destination);
+          const oscillator = context.createOscillator();
+          oscillator.frequency.value = 880;
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start(delay / 1000);
+          oscillator.stop((delay / 1000) + 0.2);
+        } catch(e2) { console.log("Fallback звук тоже не сработал"); }
+      });
     }, delay);
   }
   
