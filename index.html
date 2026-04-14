@@ -3,7 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Workout App</title>
+<title>Workout Tracker</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f0f0f">
+
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
 
 <style>
 body {
@@ -35,9 +41,7 @@ header {
   cursor: pointer;
 }
 
-.tab.active {
-  background: #4caf50;
-}
+.tab.active { background: #4caf50; }
 
 .card {
   background: #1b1b1b;
@@ -46,21 +50,13 @@ header {
   border-radius: 12px;
 }
 
-.title {
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.small {
-  color: #aaa;
-  font-size: 12px;
-  margin-bottom: 10px;
-}
+.title { font-weight: bold; }
+.small { color: #aaa; font-size: 12px; }
 
 .row {
   display: flex;
-  align-items: center;
   gap: 8px;
+  align-items: center;
   margin: 6px 0;
 }
 
@@ -68,7 +64,6 @@ input[type="number"] {
   width: 70px;
   padding: 5px;
   border-radius: 6px;
-  border: none;
 }
 
 button {
@@ -82,22 +77,15 @@ button {
   width: calc(100% - 20px);
   margin: 10px;
   background: #4caf50;
-  color: #fff;
-  font-size: 16px;
+  color: white;
 }
 
 /* TIMER */
-.timer-box {
-  background: #1b1b1b;
+.timer {
   margin: 10px;
   padding: 12px;
+  background: #1b1b1b;
   border-radius: 12px;
-}
-
-.timer-display {
-  margin-top: 8px;
-  font-weight: bold;
-  color: #4caf50;
 }
 </style>
 </head>
@@ -121,71 +109,57 @@ button {
 const program = {
   push: [
     {name:"Жим гантелей", reps:"8-12"},
-    {name:"Разводка гантелей", reps:"12-15"},
+    {name:"Разводка", reps:"12-15"},
     {name:"Жим над головой", reps:"10-15"},
-    {name:"Вращение блина вокруг головы", reps:"10-12"},
+    {name:"Вращение блина", reps:"10-12"},
     {name:"Французский жим", reps:"12-15"}
   ],
   pull: [
-    {name:"Тяга в наклоне", reps:"10-15"},
+    {name:"Тяга гантели", reps:"10-15"},
     {name:"Доброе утро", reps:"12-15"},
     {name:"Пуловер", reps:"12-15"},
     {name:"Бицепс", reps:"12-15"},
-    {name:"Диагональные подъёмы блина", reps:"12-15"}
+    {name:"Диагональные подъёмы", reps:"12-15"}
   ],
   legs: [
     {name:"Присед", reps:"10-15"},
     {name:"Румынская тяга", reps:"12-15"},
     {name:"Выпады", reps:"10-12"},
     {name:"Махи гирей", reps:"15-20"},
-    {name:"Джеб с блином", reps:"12-15"}
+    {name:"Джеб", reps:"12-15"}
   ]
 };
 
 let currentDay = "push";
 
-// =====================
-// STORAGE
-// =====================
-function getWorkouts(){
+function getData(){
   return JSON.parse(localStorage.getItem("workouts") || "[]");
 }
 
-// =====================
-// FIND LAST EXERCISE
-// =====================
-function getLastExercise(day, name){
-  const all = getWorkouts().filter(w => w.day === day).reverse();
-
+function getLast(day, name){
+  const all = getData().filter(w => w.day === day).reverse();
   for(let w of all){
-    const found = w.exercises.find(e => e.name === name);
-    if(found) return found;
+    const ex = w.exercises.find(e => e.name === name);
+    if(ex) return ex;
   }
   return null;
 }
 
-// =====================
-// UI
-// =====================
 function selectDay(day, el){
-
   currentDay = day;
-
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  if(el) el.classList.add("active");
+  el.classList.add("active");
 
   const app = document.getElementById("app");
   app.innerHTML = "";
 
   program[day].forEach(ex => {
 
-    const last = getLastExercise(day, ex.name);
+    const last = getLast(day, ex.name);
 
-    let prev = "нет данных";
-    if(last){
-      const done = last.sets.filter(s => s.done).length;
-      prev = `${last.weight || "-"} кг × ${done} подхода`;
-    }
+    let prev = last
+      ? `${last.weight || "-"} кг × ${last.sets.filter(s => s.done).length}`
+      : "нет данных";
 
     const card = document.createElement("div");
     card.className = "card";
@@ -198,13 +172,12 @@ function selectDay(day, el){
       <div class="row">
         <span>Вес:</span>
         <input type="number" class="weight">
-        <span>кг</span>
       </div>
 
       <div class="row">
-        <label><input type="checkbox"> 1</label>
-        <label><input type="checkbox"> 2</label>
-        <label><input type="checkbox"> 3</label>
+        <label><input type="checkbox">1</label>
+        <label><input type="checkbox">2</label>
+        <label><input type="checkbox">3</label>
       </div>
     `;
 
@@ -214,125 +187,99 @@ function selectDay(day, el){
   renderTimer();
 }
 
-// =====================
-// SAVE WORKOUT
-// =====================
 function saveWorkout(){
-
   const cards = document.querySelectorAll(".card");
 
   const exercises = [];
 
-  cards.forEach(c => {
-
+  cards.forEach(c=>{
     const name = c.dataset.name;
     const weight = c.querySelector(".weight").value;
 
     const sets = [];
     c.querySelectorAll("input[type=checkbox]").forEach(cb=>{
-      sets.push({ done: cb.checked });
+      sets.push({done:cb.checked});
     });
 
-    if(weight || sets.some(s => s.done)){
-      exercises.push({ name, weight: weight || null, sets });
+    if(weight || sets.some(s=>s.done)){
+      exercises.push({name, weight, sets});
     }
   });
 
-  const data = getWorkouts();
+  const data = getData();
 
   data.push({
-    id: Date.now(),
-    date: new Date().toISOString(),
-    day: currentDay,
+    id:Date.now(),
+    date:new Date().toISOString(),
+    day:currentDay,
     exercises
   });
 
   localStorage.setItem("workouts", JSON.stringify(data));
-
   alert("Сохранено 💪");
 }
 
-// =====================
 // TIMER
-// =====================
-let timer = null;
+let timer;
 let timeLeft = 60;
 
 function renderTimer(){
-
   const app = document.getElementById("app");
 
-  const box = document.createElement("div");
-  box.className = "timer-box";
+  const div = document.createElement("div");
+  div.className = "timer";
 
-  box.innerHTML = `
-    <div class="title">⏱ Таймер отдыха</div>
-
+  div.innerHTML = `
+    <b>⏱ Таймер отдыха</b>
     <div class="row">
-      <input id="restInput" type="number" value="60">
-      <button onclick="startTimer()">Старт</button>
-      <button onclick="stopTimer()">Стоп</button>
+      <input id="t" type="number" value="60">
+      <button onclick="start()">Старт</button>
+      <button onclick="stop()">Стоп</button>
     </div>
-
-    <div id="timerDisplay" class="timer-display">Не запущен</div>
+    <div id="d">не запущен</div>
   `;
 
-  app.appendChild(box);
+  app.appendChild(div);
 }
 
-function startTimer(){
+function start(){
+  timeLeft = +document.getElementById("t").value;
+  const d = document.getElementById("d");
 
-  const input = document.getElementById("restInput");
-  timeLeft = parseInt(input.value || 60);
+  clearInterval(timer);
 
-  const display = document.getElementById("timerDisplay");
-
-  if(timer) clearInterval(timer);
-
-  timer = setInterval(() => {
-
-    display.innerText = `⏳ Осталось: ${timeLeft} сек`;
+  timer = setInterval(()=>{
+    d.innerText = `⏳ ${timeLeft} сек`;
 
     if(timeLeft <= 0){
       clearInterval(timer);
-      timer = null;
+      d.innerText = "⏰ отдых окончен!";
 
-      display.innerText = "⏰ Отдых окончен!";
-
-      if(navigator.vibrate){
-        navigator.vibrate(200);
-      }
-
-      function playBeep(){
-  const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-  audio.play();
-}
-
-playBeep();
-
-setTimeout(playBeep, 400);
-setTimeout(playBeep, 800);
+      const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+      beep.play();
+      setTimeout(()=>beep.play(),300);
+      setTimeout(()=>beep.play(),600);
 
       return;
     }
 
     timeLeft--;
-
-  }, 1000);
+  },1000);
 }
 
-function stopTimer(){
-  if(timer) clearInterval(timer);
-  timer = null;
-
-  document.getElementById("timerDisplay").innerText = "Остановлен";
+function stop(){
+  clearInterval(timer);
+  document.getElementById("d").innerText = "остановлен";
 }
 
-// =====================
-// INIT
-// =====================
 selectDay("push");
 
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js');
+}
 </script>
 
 </body>
