@@ -12,7 +12,6 @@
 <link rel="icon" href="icon.png">
 
 <style>
-/* Фиксы для iPhone */
 body {
   margin: 0;
   font-family: -apple-system, Arial;
@@ -29,7 +28,6 @@ input[type="tel"] {
   width: 70px;
   padding: 5px;
   border-radius: 6px;
-  font-size: 16px;
 }
 
 header {
@@ -111,6 +109,7 @@ button {
 <button class="save" onclick="saveWorkout()">💾 Сохранить</button>
 
 <script>
+
 const program = {
   push: [
     {name:"Жим гантелей", reps:"8-12"},
@@ -138,45 +137,43 @@ const program = {
 let currentDay = "push";
 let audioUnlocked = false;
 
-// ТИХАЯ активация звука (без воспроизведения)
+// Разблокировка аудио
 function unlockAudio() {
   if (audioUnlocked) return;
-  
-  console.log("Активация аудио (без звука)");
-  
-  // Способ 1: создаём и сразу "убиваем" AudioContext
+
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     const context = new AudioContext();
+    const osc = context.createOscillator();
     const gain = context.createGain();
     gain.gain.value = 0;
-    const oscillator = context.createOscillator();
-    oscillator.connect(gain);
+
+    osc.connect(gain);
     gain.connect(context.destination);
-    oscillator.start(0);
-    oscillator.stop(0.001);
-    
-    if (context.state === 'suspended') {
-      context.resume();
-    }
-  } catch(e) { console.log("AudioContext error:", e); }
-  
-  // Способ 2: загружаем звук в память, НО НЕ ИГРАЕМ
-  const silentAudio = new Audio();
-  silentAudio.preload = "auto";
-  silentAudio.src = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
-  silentAudio.load();
-  
+    osc.start(0);
+    osc.stop(0.001);
+
+    if (context.state === 'suspended') context.resume();
+  } catch(e){}
+
   audioUnlocked = true;
-  
-  // Удаляем обработчики
   document.removeEventListener('touchstart', unlockAudio);
   document.removeEventListener('click', unlockAudio);
 }
 
-// Добавляем обработчики на первое касание
 document.addEventListener('touchstart', unlockAudio);
 document.addEventListener('click', unlockAudio);
+
+// 🔊 один объект звука (оптимизация)
+const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+
+function playThreeBeeps(){
+  beep.currentTime = 0;
+  beep.play();
+
+  setTimeout(()=>{ beep.currentTime = 0; beep.play(); }, 400);
+  setTimeout(()=>{ beep.currentTime = 0; beep.play(); }, 800);
+}
 
 function getData(){
   return JSON.parse(localStorage.getItem("workouts") || "[]");
@@ -193,16 +190,20 @@ function getLast(day, name){
 
 function selectDay(day, el){
   currentDay = day;
+
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  el.classList.add("active");
+  if(el) el.classList.add("active");
 
   const app = document.getElementById("app");
   app.innerHTML = "";
 
-  // Добавляем нумерацию через index
   program[day].forEach((ex, index) => {
+
     const last = getLast(day, ex.name);
-    let prev = last ? `${last.weight || "-"} кг × ${last.sets.filter(s => s.done).length}` : "нет данных";
+
+    let prev = last
+      ? `${last.weight || "-"} кг × ${last.sets.filter(s => s.done).length}`
+      : "нет данных";
 
     const card = document.createElement("div");
     card.className = "card";
@@ -211,18 +212,22 @@ function selectDay(day, el){
     card.innerHTML = `
       <div class="title">${index + 1}. ${ex.name} (${ex.reps})</div>
       <div class="small">⏮ ${prev}</div>
+
       <div class="row">
         <span>Вес:</span>
-        <input type="tel" inputmode="numeric" pattern="\\d*" class="weight">
+        <input type="tel" inputmode="numeric" pattern="\\d*" class="weight" value="${last?.weight || ''}">
       </div>
+
       <div class="row">
         <label><input type="checkbox">1</label>
         <label><input type="checkbox">2</label>
         <label><input type="checkbox">3</label>
       </div>
     `;
+
     app.appendChild(card);
   });
+
   renderTimer();
 }
 
@@ -233,49 +238,40 @@ function saveWorkout(){
   cards.forEach(c=>{
     const name = c.dataset.name;
     const weight = c.querySelector(".weight").value;
+
     const sets = [];
     c.querySelectorAll("input[type=checkbox]").forEach(cb=>{
       sets.push({done:cb.checked});
     });
+
     if(weight || sets.some(s=>s.done)){
       exercises.push({name, weight, sets});
     }
   });
 
   const data = getData();
+
   data.push({
     id:Date.now(),
     date:new Date().toISOString(),
     day:currentDay,
     exercises
   });
+
   localStorage.setItem("workouts", JSON.stringify(data));
   alert("Сохранено 💪");
 }
 
-// Таймер с тремя сигналами
+// TIMER
 let timer;
 let timeLeft = 60;
 
-function playThreeBeeps() {
-  const beepSound = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
-  
-  function playBeep(delay) {
-    setTimeout(() => {
-      const audio = new Audio(beepSound);
-      audio.play().catch(e => console.log("Звук заблокирован, коснитесь экрана:", e));
-    }, delay);
-  }
-  
-  playBeep(0);   // Первый сигнал
-  playBeep(400); // Второй через 0.4 сек
-  playBeep(800); // Третий через 0.8 сек
-}
-
 function renderTimer(){
   const app = document.getElementById("app");
+
   const div = document.createElement("div");
   div.className = "timer";
+
   div.innerHTML = `
     <b>⏱ Таймер отдыха</b>
     <div class="row">
@@ -285,23 +281,28 @@ function renderTimer(){
     </div>
     <div id="d">не запущен</div>
   `;
+
   app.appendChild(div);
 }
 
 function start(){
-  timeLeft = +document.getElementById("t").value;
+  timeLeft = parseInt(document.getElementById("t").value) || 60;
+
   const d = document.getElementById("d");
   clearInterval(timer);
+
   timer = setInterval(()=>{
     d.innerText = `⏳ ${timeLeft} сек`;
+
     if(timeLeft <= 0){
       clearInterval(timer);
       d.innerText = "⏰ отдых окончен!";
       playThreeBeeps();
       return;
     }
+
     timeLeft--;
-  }, 1000);
+  },1000);
 }
 
 function stop(){
@@ -310,6 +311,7 @@ function stop(){
 }
 
 selectDay("push");
+
 </script>
 
 <script>
