@@ -48,10 +48,12 @@ header {
   margin: 10px;
   padding: 12px;
   border-radius: 12px;
+  transition: 0.2s;
 }
 
 .card.completed {
   background: #2a5a2a;
+  border: 1px solid #4caf50;
 }
 
 .title { font-weight: bold; }
@@ -95,37 +97,47 @@ button {
   color: white;
 }
 
+/* SWITCH */
 .switch-container {
   display: flex;
   justify-content: space-between;
-  margin-top: 10px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #333;
 }
 
-.switch input { display:none; }
-
-.slider {
+.switch {
+  position: relative;
   width: 48px;
   height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
   background: #555;
-  border-radius: 20px;
-  display: inline-block;
-  position: relative;
+  border-radius: 24px;
 }
 
 .slider:before {
-  content:"";
-  position:absolute;
-  width:18px;
-  height:18px;
-  top:3px;
-  left:3px;
-  background:white;
-  border-radius:50%;
-  transition:0.3s;
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
 }
 
 input:checked + .slider {
-  background:#4caf50;
+  background: #4caf50;
 }
 
 input:checked + .slider:before {
@@ -149,46 +161,54 @@ input:checked + .slider:before {
 <button class="save" onclick="saveWorkout()">💾 Сохранить</button>
 
 <script>
+
 const program = {
   push: [
     {name:"Жим гантелей", reps:"8-12"},
     {name:"Разводка", reps:"12-15"},
     {name:"Жим над головой", reps:"10-15"},
+    {name:"Вращение блина", reps:"10-12"},
     {name:"Французский жим", reps:"12-15"}
   ],
   pull: [
     {name:"Тяга гантели", reps:"10-15"},
-    {name:"Бицепс", reps:"12-15"}
+    {name:"Доброе утро", reps:"12-15"},
+    {name:"Пуловер", reps:"12-15"},
+    {name:"Бицепс", reps:"12-15"},
+    {name:"Диагональные подъёмы", reps:"12-15"}
   ],
   legs: [
     {name:"Присед", reps:"10-15"},
-    {name:"Румынская тяга", reps:"12-15"}
+    {name:"Румынская тяга", reps:"12-15"},
+    {name:"Выпады", reps:"10-12"},
+    {name:"Махи гирей", reps:"15-20"},
+    {name:"Джеб", reps:"12-15"}
   ]
 };
 
 let currentDay = "push";
-
 let audioCtx = null;
-let timer = null;
+let notificationsEnabled = localStorage.getItem("notificationsEnabled") === "true" || false;
+
+let timer;
+let timeLeft = 60;
+let isTimerActive = false;
 let targetTimestamp = null;
-let isRunning = false;
+let backgroundInterval = null;
 
-let notificationsEnabled = localStorage.getItem("notif") === "true";
-
-function primeAudio() {
+// AUDIO FIX
+function primeAudio(){
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if (audioCtx.state === "suspended") {
-    audioCtx.resume();
-  }
+  audioCtx.resume();
 }
 
-document.addEventListener("click", primeAudio, { once: true });
+document.addEventListener("click", primeAudio, { once:true });
 
-function beep(freq, delay, vol) {
-  setTimeout(() => {
-    if (!audioCtx) return;
+// SOUND
+function beep(freq, delay, vol){
+  setTimeout(()=>{
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
 
@@ -204,155 +224,177 @@ function beep(freq, delay, vol) {
   }, delay);
 }
 
-function playSound() {
+function playSound(){
   if (document.hidden) return;
-  beep(880, 0, 0.2);
-  beep(880, 300, 0.4);
-  beep(880, 600, 0.8);
+  beep(880,0,0.2);
+  beep(880,300,0.4);
+  beep(880,600,0.8);
 }
 
-function askNotif() {
-  if ("Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
+// DATA
+function getData(){
+  return JSON.parse(localStorage.getItem("workouts") || "[]");
+}
+
+function getLast(day, name){
+  const all = getData().filter(w => w.day === day).reverse();
+  for(let w of all){
+    const ex = w.exercises.find(e => e.name === name);
+    if(ex) return ex;
   }
+  return null;
 }
 
-function notify() {
-  if (!notificationsEnabled) return;
-
-  if ("Notification" in window && Notification.permission === "granted") {
-    new Notification("⏰ Отдых окончен", {
-      body: "Пора делать следующий подход 💪",
-      icon: "icon.png"
-    });
-  }
+// CHECK GREEN CARD
+function checkAll(card){
+  const cbs = card.querySelectorAll("input[type=checkbox]");
+  const all = Array.from(cbs).every(c=>c.checked);
+  card.classList.toggle("completed", all);
 }
 
-function selectDay(day, el) {
+// SELECT DAY
+function selectDay(day, el){
   currentDay = day;
 
-  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-  if (el) el.classList.add("active");
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  if(el) el.classList.add("active");
 
   const app = document.getElementById("app");
   app.innerHTML = "";
 
-  program[day].forEach(ex => {
-    const div = document.createElement("div");
-    div.className = "card";
+  program[day].forEach((ex, i)=>{
 
-    div.innerHTML = `
-      <div class="title">${ex.name}</div>
-      <div class="small">${ex.reps}</div>
+    const last = getLast(day, ex.name);
+
+    const card = document.createElement("div");
+    card.className = "card";
+
+    card.innerHTML = `
+      <div class="title">${i+1}. ${ex.name} (${ex.reps})</div>
+      <div class="small">⏮ ${last ? (last.weight+" кг") : "нет данных"}</div>
 
       <div class="row">
-        <input placeholder="Вес">
-        <label><input type="checkbox">1</label>
-        <label><input type="checkbox">2</label>
-        <label><input type="checkbox">3</label>
+        <span>Вес:</span>
+        <input class="weight" value="${last?.weight || ""}">
+      </div>
+
+      <div class="row">
+        <label><input type="checkbox" class="set">1</label>
+        <label><input type="checkbox" class="set">2</label>
+        <label><input type="checkbox" class="set">3</label>
       </div>
     `;
 
-    app.appendChild(div);
+    app.appendChild(card);
+
+    card.querySelectorAll(".set").forEach(cb=>{
+      cb.addEventListener("change", ()=>checkAll(card));
+    });
   });
 
   renderTimer();
 }
 
-function renderTimer() {
-  const app = document.getElementById("app");
+// SAVE
+function saveWorkout(){
+  const cards = document.querySelectorAll(".card");
+  const exercises = [];
 
+  cards.forEach(c=>{
+    const name = c.querySelector(".title").innerText;
+    const weight = c.querySelector(".weight").value;
+
+    const sets = [...c.querySelectorAll(".set")].map(s=>({done:s.checked}));
+
+    exercises.push({name, weight, sets});
+  });
+
+  const data = getData();
+  data.push({
+    id:Date.now(),
+    day:currentDay,
+    date:new Date().toISOString(),
+    exercises
+  });
+
+  localStorage.setItem("workouts", JSON.stringify(data));
+  alert("Сохранено 💪");
+}
+
+// TIMER
+function start(){
+  primeAudio();
+
+  let sec = parseInt(document.getElementById("t").value) || 60;
+  timeLeft = sec;
+
+  targetTimestamp = Date.now() + sec*1000;
+  isTimerActive = true;
+
+  clearInterval(timer);
+
+  timer = setInterval(()=>{
+    let left = Math.ceil((targetTimestamp - Date.now())/1000);
+
+    if(left <= 0){
+      stop(true);
+      return;
+    }
+
+    timeLeft = left;
+    document.getElementById("d").innerText = "⏳ " + left;
+  }, 250);
+}
+
+function stop(finished=false){
+  clearInterval(timer);
+  isTimerActive = false;
+
+  if(finished){
+    playSound();
+    document.getElementById("d").innerText = "готово";
+  } else {
+    document.getElementById("d").innerText = "стоп";
+  }
+}
+
+function renderTimer(){
   const old = document.querySelector(".timer");
-  if (old) old.remove();
+  if(old) old.remove();
 
   const div = document.createElement("div");
   div.className = "timer";
 
   div.innerHTML = `
     <b>⏱ Таймер</b>
+
     <div class="row">
       <input id="t" value="60">
       <button onclick="start()">Старт</button>
       <button onclick="stop()">Стоп</button>
     </div>
 
-    <div class="timer-buttons">
-      <button class="timer-btn plus" onclick="add30()">+30</button>
-    </div>
-
-    <div id="display">готов</div>
+    <div id="d">не запущен</div>
 
     <div class="switch-container">
       <span>🔔 уведомления</span>
-      <label>
+      <label class="switch">
         <input type="checkbox" onchange="toggleNotif(this)">
         <span class="slider"></span>
       </label>
     </div>
   `;
 
-  app.appendChild(div);
+  document.getElementById("app").appendChild(div);
 }
 
-function start() {
-  primeAudio();
-  askNotif();
-
-  let sec = parseInt(document.getElementById("t").value) || 60;
-
-  targetTimestamp = Date.now() + sec * 1000;
-  isRunning = true;
-
-  clearInterval(timer);
-
-  timer = setInterval(() => {
-    if (!isRunning) return;
-
-    let left = Math.ceil((targetTimestamp - Date.now()) / 1000);
-
-    if (left <= 0) {
-      stop(true);
-      return;
-    }
-
-    document.getElementById("display").innerText = left + " сек";
-  }, 250);
-}
-
-function stop(finished=false) {
-  clearInterval(timer);
-  isRunning = false;
-
-  if (finished) {
-    playSound();
-    notify();
-    document.getElementById("display").innerText = "готово";
-  } else {
-    document.getElementById("display").innerText = "стоп";
-  }
-}
-
-function add30() {
-  if (!targetTimestamp) return;
-  targetTimestamp += 30000;
-}
-
-function toggleNotif(el) {
+// NOTIF
+function toggleNotif(el){
   notificationsEnabled = el.checked;
-  localStorage.setItem("notif", notificationsEnabled);
-}
-
-function saveWorkout() {
-  alert("Сохранено 💪");
+  localStorage.setItem("notificationsEnabled", notificationsEnabled);
 }
 
 selectDay("push");
-</script>
-
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
-}
 </script>
 
 </body>
