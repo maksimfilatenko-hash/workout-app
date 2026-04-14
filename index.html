@@ -117,10 +117,64 @@ button {
   background: #2196f3;
 }
 
-.notify-btn {
-  margin-top: 8px;
-  background: #ff9800;
-  font-size: 12px;
+/* Свитчер */
+.switch-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #333;
+}
+
+.switch-label {
+  font-size: 14px;
+  color: #aaa;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #555;
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #4caf50;
+}
+
+input:checked + .slider:before {
+  transform: translateX(24px);
 }
 </style>
 </head>
@@ -167,7 +221,12 @@ const program = {
 
 let currentDay = "push";
 let audioCtx = null;
-let notificationPermissionAsked = false;
+let notificationsEnabled = true;
+
+// Загрузка настройки уведомлений
+if (localStorage.getItem("notificationsEnabled") !== null) {
+  notificationsEnabled = localStorage.getItem("notificationsEnabled") === "true";
+}
 
 // Разблокировка аудио
 function primeAudio(){
@@ -182,10 +241,10 @@ function primeAudio(){
   } catch(e){}
 }
 
-// Звук (только когда экран активен)
+// Звук
 function playThreeBeeps(){
   if (!audioCtx) return;
-  if (document.hidden) return; // Не играем звук, если страница не активна
+  if (document.hidden) return;
 
   function beep(volume, delay){
     setTimeout(() => {
@@ -208,39 +267,37 @@ function playThreeBeeps(){
 
 // Запрос разрешения на уведомления
 function askNotificationPermission() {
-  if (!("Notification" in window)) {
-    console.log("Браузер не поддерживает уведомления");
-    return;
-  }
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "granted") return;
+  if (Notification.permission === "denied") return;
   
-  if (Notification.permission === "granted") {
-    console.log("Уведомления уже разрешены");
-  } else if (Notification.permission !== "denied") {
-    Notification.requestPermission().then(permission => {
-      if (permission === "granted") {
-        console.log("Уведомления разрешены");
-      }
-    });
-  }
+  Notification.requestPermission();
 }
 
-// Показать уведомление
-function showNotification() {
+// Показать уведомление через Service Worker
+function showNotificationIfNeeded() {
+  if (!notificationsEnabled) return;
   if (!("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
   
-  if (Notification.permission === "granted") {
+  // Отправляем сообщение Service Worker'у
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type: "SHOW_NOTIFICATION",
+      body: "Отдых окончен! Пора делать следующий подход 💪"
+    });
+  } else {
+    // Fallback
     navigator.serviceWorker.ready.then(registration => {
       registration.showNotification("⏰ Workout Tracker", {
         body: "Отдых окончен! Пора делать следующий подход 💪",
         icon: "icon.png",
         badge: "icon.png",
         vibrate: [200, 100, 200],
-        silent: false,
         tag: "timer-end",
         renotify: true
       });
     }).catch(() => {
-      // Fallback, если Service Worker не готов
       new Notification("⏰ Workout Tracker", {
         body: "Отдых окончен! Пора делать следующий подход 💪",
         icon: "icon.png"
@@ -372,13 +429,13 @@ function onTimerEnd() {
   const d = document.getElementById("d");
   if (d) d.innerText = "⏰ отдых окончен!";
   
-  // Пытаемся показать уведомление (сработает даже на заблокированном экране)
-  showNotification();
+  const isPageActive = !document.hidden;
   
-  // Звук (только если страница активна)
-  if (!document.hidden) {
+  if (isPageActive) {
     playThreeBeeps();
     navigator.vibrate?.([200,100,200]);
+  } else {
+    showNotificationIfNeeded();
   }
 }
 
@@ -399,9 +456,7 @@ function backgroundCheck() {
 function start(){
   primeAudio();
   
-  // Запрашиваем разрешение на уведомления при первом запуске таймера
-  if (!notificationPermissionAsked) {
-    notificationPermissionAsked = true;
+  if (notificationsEnabled && Notification.permission !== "granted" && Notification.permission !== "denied") {
     askNotificationPermission();
   }
   
@@ -419,7 +474,6 @@ function start(){
   
   isTimerActive = true;
   
-  // Основной таймер
   timer = setInterval(() => {
     if (!targetTimestamp || !isTimerActive) return;
     
@@ -435,7 +489,6 @@ function start(){
     d.innerText = `⏳ ${timeLeft} сек`;
   }, 200);
   
-  // Фоновый таймер
   backgroundInterval = setInterval(backgroundCheck, 1000);
 }
 
@@ -467,6 +520,20 @@ function add30Seconds() {
   }
 }
 
+function toggleNotifications() {
+  notificationsEnabled = !notificationsEnabled;
+  localStorage.setItem("notificationsEnabled", notificationsEnabled);
+  
+  if (notificationsEnabled && Notification.permission !== "granted" && Notification.permission !== "denied") {
+    askNotificationPermission();
+  }
+  
+  const switcher = document.getElementById("notifications-switch");
+  if (switcher) {
+    switcher.checked = notificationsEnabled;
+  }
+}
+
 function renderTimer(){
   const app = document.getElementById("app");
   
@@ -487,16 +554,25 @@ function renderTimer(){
       <button class="timer-btn plus" onclick="add30Seconds()">+30 сек</button>
     </div>
     <div id="d">не запущен</div>
-    <button class="timer-btn notify-btn" onclick="askNotificationPermission()">🔔 Включить уведомления</button>
+    <div class="switch-container">
+      <span class="switch-label">🔔 Уведомления (при заблок. экране)</span>
+      <label class="switch">
+        <input type="checkbox" id="notifications-switch" onchange="toggleNotifications()">
+        <span class="slider"></span>
+      </label>
+    </div>
   `;
 
   app.appendChild(div);
+  
+  const switcher = document.getElementById("notifications-switch");
+  if (switcher) {
+    switcher.checked = notificationsEnabled;
+  }
 }
 
-// Слушаем, когда страница становится активной
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && targetTimestamp && isTimerActive) {
-    // При возвращении на страницу обновляем отображение
     backgroundCheck();
   }
 });
