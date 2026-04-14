@@ -136,6 +136,52 @@ const program = {
 };
 
 let currentDay = "push";
+let audioAllowed = false; // Флаг: разрешён ли звук
+
+// Функция для "активации" звука при первом касании
+function enableAudioOnFirstTouch() {
+  if (audioAllowed) return; // Если уже активирован, выходим
+  
+  console.log("Активация звука...");
+  
+  // Создаём "тихий" AudioContext для разблокировки
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (AudioContext) {
+    const context = new AudioContext();
+    // Создаём пустой звук и сразу его останавливаем
+    const gain = context.createGain();
+    gain.gain.value = 0;
+    const oscillator = context.createOscillator();
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(0);
+    oscillator.stop(0.001);
+    
+    // Включаем контекст
+    if (context.state === 'suspended') {
+      context.resume();
+    }
+  }
+  
+  // Альтернативный способ: пробуем воспроизвести и сразу остановить
+  const testAudio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+  testAudio.play()
+    .then(() => {
+      testAudio.pause();
+      testAudio.currentTime = 0;
+      audioAllowed = true;
+      console.log("Звук активирован!");
+    })
+    .catch(e => console.log("Ожидание первого касания..."));
+  
+  // Удаляем обработчик после первого срабатывания
+  document.removeEventListener('touchstart', enableAudioOnFirstTouch);
+  document.removeEventListener('click', enableAudioOnFirstTouch);
+}
+
+// Добавляем обработчики на первое касание
+document.addEventListener('touchstart', enableAudioOnFirstTouch);
+document.addEventListener('click', enableAudioOnFirstTouch);
 
 function getData(){
   return JSON.parse(localStorage.getItem("workouts") || "[]");
@@ -217,16 +263,18 @@ let timeLeft = 60;
 
 function playThreeBeeps() {
   const beepSound = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
-  let audio1 = new Audio(beepSound);
-  audio1.play().catch(e => console.log("Сигнал 1:", e));
-  setTimeout(() => {
-    let audio2 = new Audio(beepSound);
-    audio2.play().catch(e => console.log("Сигнал 2:", e));
-  }, 400);
-  setTimeout(() => {
-    let audio3 = new Audio(beepSound);
-    audio3.play().catch(e => console.log("Сигнал 3:", e));
-  }, 800);
+  
+  // Функция для воспроизведения с проверкой разрешения
+  function playBeep(delay) {
+    setTimeout(() => {
+      const audio = new Audio(beepSound);
+      audio.play().catch(e => console.log("Звук заблокирован, коснитесь экрана:", e));
+    }, delay);
+  }
+  
+  playBeep(0);   // Первый сигнал
+  playBeep(400); // Второй через 0.4 сек
+  playBeep(800); // Третий через 0.8 сек
 }
 
 function renderTimer(){
