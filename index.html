@@ -219,9 +219,27 @@ function saveWorkout(){
   alert("Сохранено 💪");
 }
 
-// TIMER
+// ========== ТАЙМЕР С ТРЕМЯ СИГНАЛАМИ (ИСПРАВЛЕНО) ==========
 let timer;
 let timeLeft = 60;
+
+// Функция для воспроизведения трёх коротких сигналов
+function playThreeBeeps() {
+  let beepCount = 0;
+  const beepSound = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
+  
+  function playOneBeep() {
+    const audio = new Audio(beepSound);
+    audio.play().catch(e => console.log("Ошибка воспроизведения:", e));
+    beepCount++;
+    
+    if (beepCount < 3) {
+      setTimeout(playOneBeep, 500); // пауза полсекунды между сигналами
+    }
+  }
+  
+  playOneBeep(); // запускаем первый сигнал
+}
 
 function renderTimer(){
   const app = document.getElementById("app");
@@ -254,17 +272,15 @@ function start(){
     if(timeLeft <= 0){
       clearInterval(timer);
       d.innerText = "⏰ отдых окончен!";
-
-      const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-      beep.play();
-      setTimeout(()=>beep.play(),300);
-      setTimeout(()=>beep.play(),600);
-
+      
+      // ТРИ СИГНАЛА! Работает правильно
+      playThreeBeeps();
+      
       return;
     }
 
     timeLeft--;
-  },1000);
+  }, 1000);
 }
 
 function stop(){
@@ -272,6 +288,7 @@ function stop(){
   document.getElementById("d").innerText = "остановлен";
 }
 
+// Инициализация
 selectDay("push");
 
 </script>
