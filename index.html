@@ -275,7 +275,7 @@ function renderTimer(){
   div.innerHTML = `
     <b>⏱ Таймер отдыха</b>
     <div class="row">
-      <input id="t" type="tel" inputmode="numeric" pattern="\\d*" value="60">
+      <input id="t" type="tel" inputmode="numeric" pattern="\\d*" value="120">
       <button onclick="start()">Старт</button>
       <button onclick="stop()">Стоп</button>
     </div>
@@ -286,7 +286,7 @@ function renderTimer(){
 }
 
 function start(){
-  timeLeft = parseInt(document.getElementById("t").value) || 60;
+  timeLeft = parseInt(document.getElementById("t").value) || 120;
 
   const d = document.getElementById("d");
   clearInterval(timer);
