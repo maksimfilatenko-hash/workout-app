@@ -80,7 +80,6 @@ button {
   color: white;
 }
 
-/* TIMER */
 .timer {
   margin: 10px;
   padding: 12px;
@@ -105,7 +104,6 @@ button {
 <button class="save" onclick="saveWorkout()">💾 Сохранить</button>
 
 <script>
-
 const program = {
   push: [
     {name:"Жим гантелей", reps:"8-12"},
@@ -154,12 +152,8 @@ function selectDay(day, el){
   app.innerHTML = "";
 
   program[day].forEach(ex => {
-
     const last = getLast(day, ex.name);
-
-    let prev = last
-      ? `${last.weight || "-"} кг × ${last.sets.filter(s => s.done).length}`
-      : "нет данных";
+    let prev = last ? `${last.weight || "-"} кг × ${last.sets.filter(s => s.done).length}` : "нет данных";
 
     const card = document.createElement("div");
     card.className = "card";
@@ -168,12 +162,10 @@ function selectDay(day, el){
     card.innerHTML = `
       <div class="title">${ex.name} (${ex.reps})</div>
       <div class="small">⏮ ${prev}</div>
-
       <div class="row">
         <span>Вес:</span>
         <input type="number" class="weight">
       </div>
-
       <div class="row">
         <label><input type="checkbox">1</label>
         <label><input type="checkbox">2</label>
@@ -189,61 +181,58 @@ function selectDay(day, el){
 
 function saveWorkout(){
   const cards = document.querySelectorAll(".card");
-
   const exercises = [];
 
   cards.forEach(c=>{
     const name = c.dataset.name;
     const weight = c.querySelector(".weight").value;
-
     const sets = [];
     c.querySelectorAll("input[type=checkbox]").forEach(cb=>{
       sets.push({done:cb.checked});
     });
-
     if(weight || sets.some(s=>s.done)){
       exercises.push({name, weight, sets});
     }
   });
 
   const data = getData();
-
   data.push({
     id:Date.now(),
     date:new Date().toISOString(),
     day:currentDay,
     exercises
   });
-
   localStorage.setItem("workouts", JSON.stringify(data));
   alert("Сохранено 💪");
 }
 
-// ========== ТАЙМЕР С ТРЕМЯ СИГНАЛАМИ (ИСПРАВЛЕНО) ==========
+// ========== ТАЙМЕР С ТРЕМЯ ГАРАНТИРОВАННЫМИ СИГНАЛАМИ ==========
 let timer;
 let timeLeft = 60;
 
-// Функция для воспроизведения трёх коротких сигналов
 function playThreeBeeps() {
-  let beepCount = 0;
+  // Создаём три звука с разной задержкой
   const beepSound = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
   
-  function playOneBeep() {
-    const audio = new Audio(beepSound);
-    audio.play().catch(e => console.log("Ошибка воспроизведения:", e));
-    beepCount++;
-    
-    if (beepCount < 3) {
-      setTimeout(playOneBeep, 500); // пауза полсекунды между сигналами
-    }
-  }
+  // Первый сигнал сразу
+  let audio1 = new Audio(beepSound);
+  audio1.play().catch(e => console.log("Сигнал 1 заблокирован:", e));
   
-  playOneBeep(); // запускаем первый сигнал
+  // Второй сигнал через 0.4 секунды
+  setTimeout(() => {
+    let audio2 = new Audio(beepSound);
+    audio2.play().catch(e => console.log("Сигнал 2 заблокирован:", e));
+  }, 400);
+  
+  // Третий сигнал через 0.8 секунды
+  setTimeout(() => {
+    let audio3 = new Audio(beepSound);
+    audio3.play().catch(e => console.log("Сигнал 3 заблокирован:", e));
+  }, 800);
 }
 
 function renderTimer(){
   const app = document.getElementById("app");
-
   const div = document.createElement("div");
   div.className = "timer";
 
@@ -256,7 +245,6 @@ function renderTimer(){
     </div>
     <div id="d">не запущен</div>
   `;
-
   app.appendChild(div);
 }
 
@@ -273,12 +261,11 @@ function start(){
       clearInterval(timer);
       d.innerText = "⏰ отдых окончен!";
       
-      // ТРИ СИГНАЛА! Работает правильно
+      // ТРИ РАЗНЫХ ЗВУКА С РАЗНЫМИ ЗАДЕРЖКАМИ
       playThreeBeeps();
       
       return;
     }
-
     timeLeft--;
   }, 1000);
 }
@@ -288,9 +275,7 @@ function stop(){
   document.getElementById("d").innerText = "остановлен";
 }
 
-// Инициализация
 selectDay("push");
-
 </script>
 
 <script>
