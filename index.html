@@ -135,37 +135,19 @@ const program = {
 };
 
 let currentDay = "push";
-let audioUnlocked = false;
 
-// Разблокировка аудио
-function unlockAudio() {
-  if (audioUnlocked) return;
-
-  try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    const context = new AudioContext();
-    const osc = context.createOscillator();
-    const gain = context.createGain();
-    gain.gain.value = 0;
-
-    osc.connect(gain);
-    gain.connect(context.destination);
-    osc.start(0);
-    osc.stop(0.001);
-
-    if (context.state === 'suspended') context.resume();
-  } catch(e){}
-
-  audioUnlocked = true;
-  document.removeEventListener('touchstart', unlockAudio);
-  document.removeEventListener('click', unlockAudio);
-}
-
-document.addEventListener('touchstart', unlockAudio);
-document.addEventListener('click', unlockAudio);
-
-// 🔊 один объект звука (оптимизация)
+// 🔊 звук
 const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+
+// 👇 ключевая функция (разрешает звук на iOS)
+function primeAudio(){
+  beep.play()
+    .then(()=>{
+      beep.pause();
+      beep.currentTime = 0;
+    })
+    .catch(()=>{});
+}
 
 function playThreeBeeps(){
   beep.currentTime = 0;
@@ -264,7 +246,7 @@ function saveWorkout(){
 
 // TIMER
 let timer;
-let timeLeft = 60;
+let timeLeft = 120;
 
 function renderTimer(){
   const app = document.getElementById("app");
@@ -286,7 +268,11 @@ function renderTimer(){
 }
 
 function start(){
-  timeLeft = parseInt(document.getElementById("t").value) || 120;
+  // 👇 ВАЖНО — активируем звук
+  primeAudio();
+
+  const val = parseInt(document.getElementById("t").value);
+  timeLeft = isNaN(val) ? 120 : val;
 
   const d = document.getElementById("d");
   clearInterval(timer);
@@ -298,6 +284,10 @@ function start(){
       clearInterval(timer);
       d.innerText = "⏰ отдых окончен!";
       playThreeBeeps();
+
+      // вибрация (если есть)
+      navigator.vibrate?.([200,100,200]);
+
       return;
     }
 
