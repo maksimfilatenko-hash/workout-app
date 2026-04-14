@@ -59,10 +59,18 @@ header {
   margin: 10px;
   padding: 12px;
   border-radius: 12px;
+  transition: background 0.3s ease;
+}
+
+.card.completed {
+  background: #2a5a2a;
+  border: 1px solid #4caf50;
 }
 
 .title { font-weight: bold; }
 .small { color: #aaa; font-size: 12px; }
+
+.card.completed .small { color: #ccc; }
 
 .row {
   display: flex;
@@ -90,6 +98,23 @@ button {
   padding: 12px;
   background: #1b1b1b;
   border-radius: 12px;
+}
+
+.timer-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.timer-btn {
+  flex: 1;
+  background: #2a2a2a;
+  color: white;
+  padding: 8px;
+}
+
+.timer-btn.plus {
+  background: #2196f3;
 }
 </style>
 </head>
@@ -137,42 +162,34 @@ const program = {
 let currentDay = "push";
 let audioCtx = null;
 
-// 🔥 правильная разблокировка аудио (без звука)
+// Разблокировка аудио
 function primeAudio(){
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-
     if (!audioCtx) {
       audioCtx = new AudioContext();
     }
-
     if (audioCtx.state === 'suspended') {
       audioCtx.resume();
     }
   } catch(e){}
 }
 
-// 🔊 звук как Apple Watch
+// Звук
 function playThreeBeeps(){
   if (!audioCtx) return;
 
   function beep(volume, delay){
     setTimeout(() => {
-
       const oscillator = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-
       oscillator.type = "triangle";
       oscillator.frequency.value = 880;
-
       gain.gain.value = volume;
-
       oscillator.connect(gain);
       gain.connect(audioCtx.destination);
-
       oscillator.start();
       oscillator.stop(audioCtx.currentTime + 0.15);
-
     }, delay);
   }
 
@@ -194,6 +211,18 @@ function getLast(day, name){
   return null;
 }
 
+// Проверка, все ли три галочки поставлены
+function checkAllCheckboxes(card) {
+  const checkboxes = card.querySelectorAll("input[type=checkbox]");
+  const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+  
+  if (allChecked) {
+    card.classList.add("completed");
+  } else {
+    card.classList.remove("completed");
+  }
+}
+
 function selectDay(day, el){
   currentDay = day;
 
@@ -204,9 +233,7 @@ function selectDay(day, el){
   app.innerHTML = "";
 
   program[day].forEach((ex, index) => {
-
     const last = getLast(day, ex.name);
-
     let prev = last
       ? `${last.weight || "-"} кг × ${last.sets.filter(s => s.done).length}`
       : "нет данных";
@@ -225,13 +252,19 @@ function selectDay(day, el){
       </div>
 
       <div class="row">
-        <label><input type="checkbox">1</label>
-        <label><input type="checkbox">2</label>
-        <label><input type="checkbox">3</label>
+        <label><input type="checkbox" class="set-checkbox">1</label>
+        <label><input type="checkbox" class="set-checkbox">2</label>
+        <label><input type="checkbox" class="set-checkbox">3</label>
       </div>
     `;
 
     app.appendChild(card);
+    
+    // Добавляем слушатели на чекбоксы
+    const checkboxes = card.querySelectorAll(".set-checkbox");
+    checkboxes.forEach(cb => {
+      cb.addEventListener('change', () => checkAllCheckboxes(card));
+    });
   });
 
   renderTimer();
@@ -244,7 +277,6 @@ function saveWorkout(){
   cards.forEach(c=>{
     const name = c.dataset.name;
     const weight = c.querySelector(".weight").value;
-
     const sets = [];
     c.querySelectorAll("input[type=checkbox]").forEach(cb=>{
       sets.push({done:cb.checked});
@@ -256,7 +288,6 @@ function saveWorkout(){
   });
 
   const data = getData();
-
   data.push({
     id:Date.now(),
     date:new Date().toISOString(),
@@ -266,60 +297,169 @@ function saveWorkout(){
 
   localStorage.setItem("workouts", JSON.stringify(data));
   alert("Сохранено 💪");
+  
+  // Обновляем отображение после сохранения (сбрасываем зелёный цвет)
+  selectDay(currentDay, document.querySelector(".tab.active"));
 }
 
-// TIMER
+// Таймер
 let timer;
-let timeLeft = 120;
+let timeLeft = 60;
+let isTimerActive = false;
+
+// Фоновая работа таймера
+let backgroundInterval = null;
+let targetTimestamp = null;
+
+function updateTimerDisplay() {
+  const d = document.getElementById("d");
+  if (d) {
+    d.innerText = `⏳ ${timeLeft} сек`;
+  }
+}
+
+function startTimerFromBackground() {
+  if (!targetTimestamp) return;
+  
+  const now = Date.now();
+  const remaining = Math.max(0, Math.ceil((targetTimestamp - now) / 1000));
+  
+  if (remaining <= 0) {
+    // Таймер закончился
+    clearInterval(backgroundInterval);
+    backgroundInterval = null;
+    isTimerActive = false;
+    const d = document.getElementById("d");
+    if (d) d.innerText = "⏰ отдых окончен!";
+    playThreeBeeps();
+    navigator.vibrate?.([200,100,200]);
+    targetTimestamp = null;
+  } else {
+    timeLeft = remaining;
+    updateTimerDisplay();
+  }
+}
+
+function start(){
+  primeAudio();
+  
+  const val = parseInt(document.getElementById("t").value);
+  timeLeft = isNaN(val) ? 60 : val;
+  
+  // Устанавливаем целевую метку времени
+  targetTimestamp = Date.now() + (timeLeft * 1000);
+  
+  const d = document.getElementById("d");
+  clearInterval(timer);
+  
+  // Очищаем фоновый интервал, если был
+  if (backgroundInterval) {
+    clearInterval(backgroundInterval);
+    backgroundInterval = null;
+  }
+  
+  isTimerActive = true;
+  
+  // Основной таймер (когда страница активна)
+  timer = setInterval(()=>{
+    if (!targetTimestamp) return;
+    
+    const now = Date.now();
+    const remaining = Math.max(0, Math.ceil((targetTimestamp - now) / 1000));
+    
+    if (remaining <= 0) {
+      clearInterval(timer);
+      clearInterval(backgroundInterval);
+      isTimerActive = false;
+      d.innerText = "⏰ отдых окончен!";
+      playThreeBeeps();
+      navigator.vibrate?.([200,100,200]);
+      targetTimestamp = null;
+      return;
+    }
+    
+    timeLeft = remaining;
+    d.innerText = `⏳ ${timeLeft} сек`;
+  }, 200); // Обновляем чаще для точности
+  
+  // Фоновый таймер (даже когда телефон заблокирован)
+  backgroundInterval = setInterval(() => {
+    if (targetTimestamp && isTimerActive) {
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((targetTimestamp - now) / 1000));
+      
+      if (remaining <= 0 && targetTimestamp) {
+        clearInterval(backgroundInterval);
+        backgroundInterval = null;
+        isTimerActive = false;
+        
+        // Обновляем UI, если он доступен
+        const d = document.getElementById("d");
+        if (d) d.innerText = "⏰ отдых окончен!";
+        playThreeBeeps();
+        navigator.vibrate?.([200,100,200]);
+        targetTimestamp = null;
+        
+        if (timer) clearInterval(timer);
+      }
+    }
+  }, 1000);
+}
+
+function stop(){
+  clearInterval(timer);
+  if (backgroundInterval) {
+    clearInterval(backgroundInterval);
+    backgroundInterval = null;
+  }
+  isTimerActive = false;
+  targetTimestamp = null;
+  const d = document.getElementById("d");
+  if (d) d.innerText = "остановлен";
+}
+
+function add30Seconds() {
+  if (isTimerActive && targetTimestamp) {
+    // Добавляем 30 секунд к целевому времени
+    targetTimestamp += 30000;
+    timeLeft = Math.max(0, Math.ceil((targetTimestamp - Date.now()) / 1000));
+    updateTimerDisplay();
+  } else if (!isTimerActive) {
+    // Если таймер не активен, просто увеличиваем значение в поле ввода
+    const input = document.getElementById("t");
+    let currentVal = parseInt(input.value);
+    if (isNaN(currentVal)) currentVal = 60;
+    currentVal += 30;
+    input.value = currentVal;
+    timeLeft = currentVal;
+    updateTimerDisplay();
+  }
+}
 
 function renderTimer(){
   const app = document.getElementById("app");
-
+  
+  // Удаляем старый таймер, если есть
+  const oldTimer = document.querySelector(".timer");
+  if (oldTimer) oldTimer.remove();
+  
   const div = document.createElement("div");
   div.className = "timer";
 
   div.innerHTML = `
     <b>⏱ Таймер отдыха</b>
     <div class="row">
-      <input id="t" type="tel" inputmode="numeric" pattern="\\d*" value="120">
+      <input id="t" type="tel" inputmode="numeric" pattern="\\d*" value="60">
       <button onclick="start()">Старт</button>
       <button onclick="stop()">Стоп</button>
+    </div>
+    <div class="timer-buttons">
+      <button class="timer-btn plus" onclick="add30Seconds()">+30 сек</button>
     </div>
     <div id="d">не запущен</div>
   `;
 
   app.appendChild(div);
-}
-
-function start(){
-  primeAudio();
-
-  const val = parseInt(document.getElementById("t").value);
-  timeLeft = isNaN(val) ? 120 : val;
-
-  const d = document.getElementById("d");
-  clearInterval(timer);
-
-  timer = setInterval(()=>{
-    d.innerText = `⏳ ${timeLeft} сек`;
-
-    if(timeLeft <= 0){
-      clearInterval(timer);
-      d.innerText = "⏰ отдых окончен!";
-      playThreeBeeps();
-
-      navigator.vibrate?.([200,100,200]);
-
-      return;
-    }
-
-    timeLeft--;
-  },1000);
-}
-
-function stop(){
-  clearInterval(timer);
-  document.getElementById("d").innerText = "остановлен";
 }
 
 selectDay("push");
