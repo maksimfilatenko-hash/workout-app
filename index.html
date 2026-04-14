@@ -148,7 +148,6 @@ function unlockAudio() {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     const context = new AudioContext();
-    // Создаём тихий узел
     const gain = context.createGain();
     gain.gain.value = 0;
     const oscillator = context.createOscillator();
@@ -166,7 +165,7 @@ function unlockAudio() {
   const silentAudio = new Audio();
   silentAudio.preload = "auto";
   silentAudio.src = "https://actions.google.com/sounds/v1/alarms/beep_short.ogg";
-  silentAudio.load(); // просто загружаем, не играем
+  silentAudio.load();
   
   audioUnlocked = true;
   
@@ -175,7 +174,7 @@ function unlockAudio() {
   document.removeEventListener('click', unlockAudio);
 }
 
-// Добавляем обработчики на первое касание (без воспроизведения звука)
+// Добавляем обработчики на первое касание
 document.addEventListener('touchstart', unlockAudio);
 document.addEventListener('click', unlockAudio);
 
@@ -200,6 +199,7 @@ function selectDay(day, el){
   const app = document.getElementById("app");
   app.innerHTML = "";
 
+  // Добавляем нумерацию через index
   program[day].forEach((ex, index) => {
     const last = getLast(day, ex.name);
     let prev = last ? `${last.weight || "-"} кг × ${last.sets.filter(s => s.done).length}` : "нет данных";
@@ -253,7 +253,7 @@ function saveWorkout(){
   alert("Сохранено 💪");
 }
 
-// Таймер с тремя сигналами (гарантированно работает на iPhone)
+// Таймер с тремя сигналами
 let timer;
 let timeLeft = 60;
 
@@ -263,26 +263,7 @@ function playThreeBeeps() {
   function playBeep(delay) {
     setTimeout(() => {
       const audio = new Audio(beepSound);
-      audio.play().catch(e => {
-        console.log("Ошибка воспроизведения:", e);
-        // Если звук заблокирован, пробуем ещё раз через Web Audio API
-        try {
-          const AudioContext = window.AudioContext || window.webkitAudioContext;
-          const context = new AudioContext();
-          const source = context.createBufferSource();
-          // Создаём короткий сигнал через Oscillator как запасной вариант
-          const gain = context.createGain();
-          gain.gain.value = 0.3;
-          source.connect(gain);
-          gain.connect(context.destination);
-          const oscillator = context.createOscillator();
-          oscillator.frequency.value = 880;
-          oscillator.connect(gain);
-          gain.connect(context.destination);
-          oscillator.start(delay / 1000);
-          oscillator.stop((delay / 1000) + 0.2);
-        } catch(e2) { console.log("Fallback звук тоже не сработал"); }
-      });
+      audio.play().catch(e => console.log("Звук заблокирован, коснитесь экрана:", e));
     }, delay);
   }
   
