@@ -8,9 +8,6 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f0f0f">
 
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="icon" href="icon.png">
-
 <style>
 body {
   margin: 0;
@@ -48,7 +45,6 @@ header {
   margin: 10px;
   padding: 12px;
   border-radius: 12px;
-  transition: 0.2s;
 }
 
 .card.completed {
@@ -101,8 +97,8 @@ button {
 .switch-container {
   display: flex;
   justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid #333;
 }
 
@@ -167,36 +163,27 @@ const program = {
     {name:"Жим гантелей", reps:"8-12"},
     {name:"Разводка", reps:"12-15"},
     {name:"Жим над головой", reps:"10-15"},
-    {name:"Вращение блина", reps:"10-12"},
     {name:"Французский жим", reps:"12-15"}
   ],
   pull: [
     {name:"Тяга гантели", reps:"10-15"},
-    {name:"Доброе утро", reps:"12-15"},
-    {name:"Пуловер", reps:"12-15"},
-    {name:"Бицепс", reps:"12-15"},
-    {name:"Диагональные подъёмы", reps:"12-15"}
+    {name:"Бицепс", reps:"12-15"}
   ],
   legs: [
     {name:"Присед", reps:"10-15"},
-    {name:"Румынская тяга", reps:"12-15"},
-    {name:"Выпады", reps:"10-12"},
-    {name:"Махи гирей", reps:"15-20"},
-    {name:"Джеб", reps:"12-15"}
+    {name:"Румынская тяга", reps:"12-15"}
   ]
 };
 
 let currentDay = "push";
 let audioCtx = null;
-let notificationsEnabled = localStorage.getItem("notificationsEnabled") === "true" || false;
-
 let timer;
-let timeLeft = 60;
-let isTimerActive = false;
 let targetTimestamp = null;
-let backgroundInterval = null;
+let isRunning = false;
 
-// AUDIO FIX
+let notificationsEnabled = localStorage.getItem("notif") === "true";
+
+// 🔊 AUDIO
 function primeAudio(){
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -206,54 +193,81 @@ function primeAudio(){
 
 document.addEventListener("click", primeAudio, { once:true });
 
-// SOUND
-function beep(freq, delay, vol){
+function beep(f,d,v){
   setTimeout(()=>{
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    if (!audioCtx) return;
 
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    gain.gain.value = vol;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
 
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    o.type = "sine";
+    o.frequency.value = f;
+    g.gain.value = v;
 
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.12);
-  }, delay);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+
+    o.start();
+    o.stop(audioCtx.currentTime + 0.12);
+  }, d);
 }
 
 function playSound(){
-  if (document.hidden) return;
   beep(880,0,0.2);
-  beep(880,300,0.4);
-  beep(880,600,0.8);
+  beep(880,300,0.5);
+  beep(880,600,1.0);
 }
 
-// DATA
+// 🔔 PUSH
+function showPush(){
+  if (!notificationsEnabled) return;
+
+  const msg = "Отдых окончен! Пора делать следующий подход 💪";
+
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.controller.postMessage({
+      type:"SHOW_NOTIFICATION",
+      body: msg
+    });
+  } else if ("Notification" in window) {
+    new Notification("Workout Tracker", { body: msg });
+  }
+}
+
+// 🧠 ГЛАВНАЯ ЛОГИКА
+function notifyEnd(){
+  const appVisible = !document.hidden;
+
+  if (appVisible) {
+    playSound();
+  } else {
+    showPush();
+  }
+}
+
+// 📊 DATA
 function getData(){
   return JSON.parse(localStorage.getItem("workouts") || "[]");
 }
 
-function getLast(day, name){
-  const all = getData().filter(w => w.day === day).reverse();
+function getLast(day,name){
+  const all = getData().filter(w=>w.day===day).reverse();
   for(let w of all){
-    const ex = w.exercises.find(e => e.name === name);
+    const ex = w.exercises.find(e=>e.name===name);
     if(ex) return ex;
   }
   return null;
 }
 
-// CHECK GREEN CARD
-function checkAll(card){
+// 🟢 CHECKBOX
+function checkCard(card){
   const cbs = card.querySelectorAll("input[type=checkbox]");
-  const all = Array.from(cbs).every(c=>c.checked);
-  card.classList.toggle("completed", all);
+  const ok = [...cbs].every(c=>c.checked);
+  card.classList.toggle("completed", ok);
 }
 
-// SELECT DAY
-function selectDay(day, el){
+// 📌 UI
+function selectDay(day,el){
   currentDay = day;
 
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -262,19 +276,17 @@ function selectDay(day, el){
   const app = document.getElementById("app");
   app.innerHTML = "";
 
-  program[day].forEach((ex, i)=>{
-
-    const last = getLast(day, ex.name);
+  program[day].forEach((ex,i)=>{
+    const last = getLast(day,ex.name);
 
     const card = document.createElement("div");
     card.className = "card";
 
     card.innerHTML = `
       <div class="title">${i+1}. ${ex.name} (${ex.reps})</div>
-      <div class="small">⏮ ${last ? (last.weight+" кг") : "нет данных"}</div>
+      <div class="small">⏮ ${last?.weight || "нет данных"}</div>
 
       <div class="row">
-        <span>Вес:</span>
         <input class="weight" value="${last?.weight || ""}">
       </div>
 
@@ -288,14 +300,14 @@ function selectDay(day, el){
     app.appendChild(card);
 
     card.querySelectorAll(".set").forEach(cb=>{
-      cb.addEventListener("change", ()=>checkAll(card));
+      cb.addEventListener("change", ()=>checkCard(card));
     });
   });
 
   renderTimer();
 }
 
-// SAVE
+// 💾 SAVE
 function saveWorkout(){
   const cards = document.querySelectorAll(".card");
   const exercises = [];
@@ -306,7 +318,7 @@ function saveWorkout(){
 
     const sets = [...c.querySelectorAll(".set")].map(s=>({done:s.checked}));
 
-    exercises.push({name, weight, sets});
+    exercises.push({name,weight,sets});
   });
 
   const data = getData();
@@ -317,47 +329,45 @@ function saveWorkout(){
     exercises
   });
 
-  localStorage.setItem("workouts", JSON.stringify(data));
+  localStorage.setItem("workouts",JSON.stringify(data));
   alert("Сохранено 💪");
 }
 
-// TIMER
+// ⏱ TIMER
 function start(){
   primeAudio();
 
-  let sec = parseInt(document.getElementById("t").value) || 60;
-  timeLeft = sec;
-
+  let sec = parseInt(document.getElementById("t").value)||60;
   targetTimestamp = Date.now() + sec*1000;
-  isTimerActive = true;
+  isRunning = true;
 
   clearInterval(timer);
 
   timer = setInterval(()=>{
-    let left = Math.ceil((targetTimestamp - Date.now())/1000);
+    let left = Math.ceil((targetTimestamp-Date.now())/1000);
 
-    if(left <= 0){
+    if(left<=0){
       stop(true);
       return;
     }
 
-    timeLeft = left;
     document.getElementById("d").innerText = "⏳ " + left;
-  }, 250);
+  },200);
 }
 
 function stop(finished=false){
   clearInterval(timer);
-  isTimerActive = false;
+  isRunning = false;
 
   if(finished){
-    playSound();
+    notifyEnd();
     document.getElementById("d").innerText = "готово";
   } else {
     document.getElementById("d").innerText = "стоп";
   }
 }
 
+// ⏱ UI TIMER
 function renderTimer(){
   const old = document.querySelector(".timer");
   if(old) old.remove();
@@ -366,7 +376,7 @@ function renderTimer(){
   div.className = "timer";
 
   div.innerHTML = `
-    <b>⏱ Таймер</b>
+    <b>⏱ Таймер отдыха</b>
 
     <div class="row">
       <input id="t" value="60">
@@ -388,13 +398,21 @@ function renderTimer(){
   document.getElementById("app").appendChild(div);
 }
 
-// NOTIF
+// 🔔 toggle
 function toggleNotif(el){
   notificationsEnabled = el.checked;
-  localStorage.setItem("notificationsEnabled", notificationsEnabled);
+  localStorage.setItem("notif",notificationsEnabled);
 }
 
+// INIT
 selectDay("push");
+
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register("sw.js");
+}
 </script>
 
 </body>
