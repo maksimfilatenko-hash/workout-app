@@ -136,25 +136,57 @@ const program = {
 
 let currentDay = "push";
 
-// 🔊 звук
-const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-
-// 👇 ключевая функция (разрешает звук на iOS)
+// 🔥 правильная разблокировка аудио (без звука)
 function primeAudio(){
-  beep.play()
-    .then(()=>{
-      beep.pause();
-      beep.currentTime = 0;
-    })
-    .catch(()=>{});
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioContext();
+
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    gain.gain.value = 0;
+
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+
+    oscillator.start(0);
+    oscillator.stop(0.001);
+
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+  } catch(e){}
 }
 
+// 🔊 звук как Apple Watch
 function playThreeBeeps(){
-  beep.currentTime = 0;
-  beep.play();
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AudioContext();
 
-  setTimeout(()=>{ beep.currentTime = 0; beep.play(); }, 400);
-  setTimeout(()=>{ beep.currentTime = 0; beep.play(); }, 800);
+  function beep(volume, delay){
+    setTimeout(() => {
+
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      oscillator.type = "triangle";
+      oscillator.frequency.value = 880;
+
+      gain.gain.value = volume;
+
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.15);
+
+    }, delay);
+  }
+
+  beep(0.2, 0);
+  beep(0.5, 400);
+  beep(1.0, 800);
 }
 
 function getData(){
@@ -268,7 +300,6 @@ function renderTimer(){
 }
 
 function start(){
-  // 👇 ВАЖНО — активируем звук
   primeAudio();
 
   const val = parseInt(document.getElementById("t").value);
@@ -285,7 +316,6 @@ function start(){
       d.innerText = "⏰ отдых окончен!";
       playThreeBeeps();
 
-      // вибрация (если есть)
       navigator.vibrate?.([200,100,200]);
 
       return;
