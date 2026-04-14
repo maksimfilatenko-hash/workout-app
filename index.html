@@ -2,103 +2,99 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Workout Tracker</title>
 
 <style>
-body {
-  margin: 0;
-  font-family: -apple-system, Arial;
-  background: #0f0f0f;
-  color: #fff;
+body{
+  margin:0;
+  font-family:Arial;
+  background:#0f0f0f;
+  color:#fff;
 }
 
-header {
-  padding: 15px;
-  text-align: center;
-  font-size: 20px;
-  font-weight: bold;
-  background: #151515;
+header{
+  padding:15px;
+  text-align:center;
+  background:#151515;
+  font-weight:bold;
 }
 
-.tabs {
-  display: flex;
-  justify-content: space-around;
-  padding: 10px;
-  background: #1a1a1a;
+.tabs{
+  display:flex;
+  justify-content:space-around;
+  padding:10px;
+  background:#1a1a1a;
 }
 
-.tab {
-  padding: 8px 14px;
-  border-radius: 20px;
-  background: #2a2a2a;
-  cursor: pointer;
+.tab{
+  padding:8px 14px;
+  background:#2a2a2a;
+  border-radius:20px;
+  cursor:pointer;
 }
 
-.tab.active { background: #4caf50; }
+.tab.active{background:#4caf50;}
 
-.card {
-  background: #1b1b1b;
-  margin: 10px;
-  padding: 12px;
-  border-radius: 12px;
+.card{
+  margin:10px;
+  padding:12px;
+  background:#1b1b1b;
+  border-radius:12px;
 }
 
-.card.completed {
-  background: #2a5a2a;
-  border: 1px solid #4caf50;
+.card.completed{
+  background:#2a5a2a;
+  border:1px solid #4caf50;
 }
 
-.title { font-weight: bold; }
-.small { color: #aaa; font-size: 12px; }
+.title{font-weight:bold;}
+.small{color:#aaa;font-size:12px;}
 
-.row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0;
+.row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:6px 0;
 }
 
-/* ✔ FIX input веса */
-.weight {
-  width: 60px;
-  padding: 4px;
-  border-radius: 6px;
-  border: none;
-  text-align: center;
+.weight{
+  width:55px;
+  padding:4px;
+  border-radius:6px;
+  border:none;
+  text-align:center;
 }
 
-button {
-  padding: 10px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
+button{
+  padding:10px;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
 }
 
-.save {
-  width: calc(100% - 20px);
-  margin: 10px;
-  background: #4caf50;
-  color: white;
+.save{
+  width:calc(100% - 20px);
+  margin:10px;
+  background:#4caf50;
+  color:white;
 }
 
 /* TIMER */
-.timer {
-  margin: 10px;
-  padding: 12px;
-  background: #1b1b1b;
-  border-radius: 12px;
+.timer{
+  margin:10px;
+  padding:12px;
+  background:#1b1b1b;
+  border-radius:12px;
 }
 
-.timer-buttons {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
+.timer-buttons{
+  margin-top:8px;
 }
 
-.timer-btn.plus {
-  background: #2196f3;
-  color: white;
+.plus{
+  background:#2196f3;
+  color:white;
 }
 </style>
 </head>
@@ -119,79 +115,51 @@ button {
 
 <script>
 
-const program = {
-  push: [
-    {name:"Жим гантелей", reps:"8-12"},
-    {name:"Разводка", reps:"12-15"},
-    {name:"Жим над головой", reps:"10-15"},
-    {name:"Французский жим", reps:"12-15"},
-    {name:"Отжимания", reps:"макс"}
+const program={
+  push:[
+    {name:"Жим гантелей",reps:"8-12"},
+    {name:"Разводка",reps:"12-15"},
+    {name:"Жим над головой",reps:"10-15"},
+    {name:"Французский жим",reps:"12-15"},
+    {name:"Отжимания",reps:"макс"}
   ],
-  pull: [
-    {name:"Тяга гантели", reps:"10-15"},
-    {name:"Бицепс", reps:"12-15"},
-    {name:"Пуловер", reps:"12-15"},
-    {name:"Доброе утро", reps:"12-15"},
-    {name:"Подъёмы в наклоне", reps:"12-15"}
+  pull:[
+    {name:"Тяга гантели",reps:"10-15"},
+    {name:"Бицепс",reps:"12-15"},
+    {name:"Пуловер",reps:"12-15"},
+    {name:"Доброе утро",reps:"12-15"},
+    {name:"Подъёмы",reps:"12-15"}
   ],
-  legs: [
-    {name:"Присед", reps:"10-15"},
-    {name:"Румынская тяга", reps:"12-15"},
-    {name:"Выпады", reps:"10-12"},
-    {name:"Махи гирей", reps:"15-20"},
-    {name:"Джамп сквоты", reps:"12-15"}
+  legs:[
+    {name:"Присед",reps:"10-15"},
+    {name:"Румынская тяга",reps:"12-15"},
+    {name:"Выпады",reps:"10-12"},
+    {name:"Махи",reps:"15-20"},
+    {name:"Джамп",reps:"12-15"}
   ]
 };
 
-let currentDay="push";
-let timer;
-let target=0;
-let running=false;
+let day="push";
 
-/* ================= TIMER ================= */
+/* ================= STORAGE ================= */
 
-function start(){
-  let sec=parseInt(document.getElementById("t").value)||60;
-  target=Date.now()+sec*1000;
-  running=true;
-
-  clearInterval(timer);
-
-  timer=setInterval(()=>{
-    let left=Math.ceil((target-Date.now())/1000);
-
-    if(left<=0){
-      stop(true);
-      return;
-    }
-
-    document.getElementById("d").innerText="⏳ "+left+" сек";
-  },200);
+function getData(){
+  return JSON.parse(localStorage.getItem("workouts")||"[]");
 }
 
-function stop(done=false){
-  clearInterval(timer);
-  running=false;
-
-  if(done){
-    notify();
-    document.getElementById("d").innerText="готово";
-  } else {
-    document.getElementById("d").innerText="стоп";
+function getLast(day,name){
+  const all=getData().filter(w=>w.day===day).reverse();
+  for(let w of all){
+    const ex=w.exercises.find(e=>e.name===name);
+    if(ex) return ex;
   }
-}
-
-/* +30 sec FIX */
-function add30(){
-  if(running){
-    target+=30000;
-  }
+  return null;
 }
 
 /* ================= UI ================= */
 
-function selectDay(day,el){
-  currentDay=day;
+function selectDay(d,el){
+  day=d;
 
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   el.classList.add("active");
@@ -199,16 +167,25 @@ function selectDay(day,el){
   const app=document.getElementById("app");
   app.innerHTML="";
 
-  program[day].forEach((ex,i)=>{
+  program[d].forEach((ex,i)=>{
+
+    const last=getLast(d,ex.name);
+
+    let prev="нет данных";
+    if(last){
+      const done=last.sets?last.sets.filter(s=>s.done).length:0;
+      prev=`${last.weight||0} кг × ${done}`;
+    }
 
     const card=document.createElement("div");
     card.className="card";
 
     card.innerHTML=`
       <div class="title">${i+1}. ${ex.name} (${ex.reps})</div>
+      <div class="small">⏮ ${prev}</div>
 
       <div class="row">
-        <input class="weight" placeholder="кг">
+        <input class="weight" placeholder="кг" value="${last?.weight||""}">
       </div>
 
       <div class="row">
@@ -231,6 +208,75 @@ function selectDay(day,el){
   renderTimer();
 }
 
+/* ================= SAVE ================= */
+
+function saveWorkout(){
+  const cards=document.querySelectorAll(".card");
+  const exercises=[];
+
+  cards.forEach(c=>{
+    const name=c.querySelector(".title").innerText;
+    const weight=c.querySelector(".weight").value;
+
+    const sets=[...c.querySelectorAll("input[type=checkbox]")]
+      .map(s=>({done:s.checked}));
+
+    exercises.push({name,weight,sets});
+  });
+
+  const data=getData();
+  data.push({
+    id:Date.now(),
+    day,
+    date:new Date().toISOString(),
+    exercises
+  });
+
+  localStorage.setItem("workouts",JSON.stringify(data));
+
+  alert("Сохранено 💪");
+}
+
+/* ================= TIMER ================= */
+
+let timer;
+let target=0;
+let running=false;
+
+function start(){
+  let sec=parseInt(document.getElementById("t").value)||60;
+
+  target=Date.now()+sec*1000;
+  running=true;
+
+  clearInterval(timer);
+
+  timer=setInterval(()=>{
+    let left=Math.ceil((target-Date.now())/1000);
+
+    if(left<=0){
+      stop(true);
+      return;
+    }
+
+    document.getElementById("d").innerText="⏳ "+left;
+  },200);
+}
+
+function stop(done=false){
+  clearInterval(timer);
+  running=false;
+
+  document.getElementById("d").innerText=done?"готово":"стоп";
+}
+
+/* ✔ FIX +30 sec */
+function add30(){
+  if(running){
+    target+=30000;
+  }
+}
+
 /* ================= TIMER UI ================= */
 
 function renderTimer(){
@@ -241,7 +287,7 @@ function renderTimer(){
   div.className="timer";
 
   div.innerHTML=`
-    <b>⏱ Таймер</b>
+    <b>⏱ Таймер отдыха</b>
 
     <div class="row">
       <input id="t" value="60">
@@ -250,7 +296,7 @@ function renderTimer(){
     </div>
 
     <div class="timer-buttons">
-      <button class="timer-btn plus" onclick="add30()">+30 сек</button>
+      <button class="plus" onclick="add30()">+30 сек</button>
     </div>
 
     <div id="d">не запущен</div>
@@ -259,22 +305,7 @@ function renderTimer(){
   document.getElementById("app").appendChild(div);
 }
 
-/* ================= NOTIFY ================= */
-
-function notify(){
-  const msg="Отдых окончен 💪";
-
-  if(!document.hidden){
-    console.log("BEEP");
-  } else {
-    if("Notification" in window){
-      new Notification(msg);
-    }
-  }
-}
-
-/* ================= INIT ================= */
-
+/* INIT */
 selectDay("push");
 
 </script>
