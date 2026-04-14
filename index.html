@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Workout Tracker</title>
 
 <link rel="manifest" href="manifest.json">
@@ -19,7 +19,6 @@ body {
   background: #0f0f0f;
   color: #fff;
   overflow-x: hidden;
-  -webkit-text-size-adjust: 100%;
 }
 
 input, button, .tab, .save {
@@ -268,26 +267,6 @@ function stop(){
 }
 
 selectDay("push");
-</script>
-
-<!-- Фикс масштаба для iPhone -->
-<script>
-(function fixIPhoneScale() {
-  let timeout;
-  window.addEventListener('focusout', function() {
-    timeout = setTimeout(function() {
-      window.scrollTo(0, 0);
-      document.body.scrollTop = 0;
-      document.documentElement.scrollTop = 0;
-    }, 100);
-  });
-  window.addEventListener('resize', function() {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(function() {
-      window.scrollTo(0, 0);
-    }, 100);
-  });
-})();
 </script>
 
 <script>
